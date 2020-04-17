@@ -1,2 +1,2 @@
 # private-wreck-it
-private wreck it is foucs on internal tests
+private wreck is an internal fuzz platform base on manuel's paper
