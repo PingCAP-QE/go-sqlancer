@@ -16,14 +16,27 @@ package data_gen
 import (
 	"fmt"
 	//"github.com/pingcap/parser/ast"
-	"github.com/chaos-mesh/private-wreck-it/pkg/go-sqlsmith/types"
-	"github.com/chaos-mesh/private-wreck-it/pkg/go-sqlsmith/util"
 	"strings"
 	"time"
+
+	"github.com/chaos-mesh/private-wreck-it/pkg/go-sqlsmith/types"
+	"github.com/chaos-mesh/private-wreck-it/pkg/go-sqlsmith/util"
 
 	"github.com/pingcap/parser/mysql"
 	tidbTypes "github.com/pingcap/tidb/types"
 	uuid "github.com/satori/go.uuid"
+)
+
+var (
+	stringEnums = []string{"", "0", "-0", "1", "-1", "true", "false", " ", "NULL", "2020-02-02 02:02:00"}
+	intEnums    = []int{0, 1, -1, 65535}
+	floatEnums  = []float64{0, 0.1, 1.0000, -0.1, -1.0000, 0.5, 1.5}
+	timeEnums   = []tidbTypes.CoreTime{
+		tidbTypes.FromDate(0, 0, 0, 0, 0, 0, 0),
+		tidbTypes.FromDate(1, 1, 1, 0, 0, 0, 0),
+		tidbTypes.FromDate(2020, 2, 2, 2, 2, 2, 0),
+		tidbTypes.FromDate(9999, 9, 9, 9, 9, 9, 0),
+	}
 )
 
 // GetUUID return uuid
@@ -97,6 +110,54 @@ func GenerateDataItem(column *types.Column) interface{} {
 	return res
 }
 
+// GenerateZeroDataItem gets zero data interface with given type
+func GenerateZeroDataItem(column *types.Column) interface{} {
+	var res interface{}
+	// there will be 1/3 possibility return nil
+	//if !column.HasOption(ast.ColumnOptionNotNull) && util.RdRange(0, 3) == 0 {
+	//	return nil
+	//}
+	switch column.DataType {
+	case "varchar":
+		res = ""
+	case "text":
+		res = ""
+	case "int":
+		res = 0
+	case "datetime":
+		res = tidbTypes.NewTime(tidbTypes.FromDate(0, 0, 0, 0, 0, 0, 0), mysql.TypeDatetime, 0)
+	case "timestamp":
+		res = tidbTypes.NewTime(tidbTypes.FromDate(0, 0, 0, 0, 0, 0, 0), mysql.TypeTimestamp, 0)
+	case "float":
+		res = float64(0)
+	}
+	return res
+}
+
+// GenerateEnumDataItem gets enum data interface with given type
+func GenerateEnumDataItem(column *types.Column) interface{} {
+	var res interface{}
+	// there will be 1/3 possibility return nil
+	//if !column.HasOption(ast.ColumnOptionNotNull) && util.RdRange(0, 3) == 0 {
+	//	return nil
+	//}
+	switch column.DataType {
+	case "varchar":
+		res = stringEnums[util.Rd(len(stringEnums))]
+	case "text":
+		res = stringEnums[util.Rd(len(stringEnums))]
+	case "int":
+		res = intEnums[util.Rd(len(intEnums))]
+	case "datetime":
+		res = tidbTypes.NewTime(timeEnums[util.Rd(len(timeEnums))], mysql.TypeDatetime, 0)
+	case "timestamp":
+		res = tidbTypes.NewTime(timeEnums[util.Rd(len(timeEnums))], mysql.TypeDatetime, 0)
+	case "float":
+		res = floatEnums[util.Rd(len(floatEnums))]
+	}
+	return res
+}
+
 // GenerateStringItem generate string item
 func GenerateStringItem() string {
 	return strings.ToUpper(GenerateStringItemLen(100))
@@ -144,7 +205,7 @@ func GenerateTiDBDateItem() tidbTypes.Time {
 }
 
 func GenerateTiDBTimestampItem() tidbTypes.Time {
-	return tidbTypes.NewTime(tidbTypes.FromGoTime(GenerateTimestampItem()), mysql.TypeDatetime, 0)
+	return tidbTypes.NewTime(tidbTypes.FromGoTime(GenerateTimestampItem()), mysql.TypeTimestamp, 0)
 }
 
 func ifDaylightTime(t time.Time) bool {

@@ -29,7 +29,7 @@ type Function struct {
 	MinArgs int
 	MaxArgs int
 	Name    string
-	Eval    func(a, b parser_driver.ValueExpr) (parser_driver.ValueExpr, error)
+	Eval    func(a ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error)
 }
 
 func (f *Function) NewAcceptTypeMap() *map[int]int {

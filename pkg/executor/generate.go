@@ -61,8 +61,8 @@ func (e *Executor) reloadSchema() error {
 // Generate DDL
 
 // GenerateDDLCreateTable rand create table statement
-func (e *Executor) GenerateDDLCreateTable() (*types.SQL, error) {
-	stmt, table, err := e.ss.CreateTableStmt()
+func (e *Executor) GenerateDDLCreateTable(colTypes []string) (*types.SQL, error) {
+	stmt, table, err := e.ss.CreateTableStmt(colTypes)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

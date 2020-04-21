@@ -8,11 +8,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/errors"
 	"github.com/pingcap/log"
 	"github.com/chaos-mesh/private-wreck-it/pkg/connection"
 	"github.com/chaos-mesh/private-wreck-it/pkg/executor"
 	"github.com/chaos-mesh/private-wreck-it/pkg/generator"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/pingcap/parser/model"
 )
@@ -23,6 +25,7 @@ type Pivot struct {
 	DB       *sql.DB
 	DBName   string
 	Executor *executor.Executor
+	round    int
 
 	Generator
 }
@@ -92,12 +95,18 @@ func (p *Pivot) Init(ctx context.Context) {
 
 func (p *Pivot) prepare(ctx context.Context) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < r.Intn(10)+1; i++ {
-		sql, _ := p.Executor.GenerateDDLCreateTable()
-		err := p.Executor.Exec(sql.SQLStmt)
-		if err != nil {
-			log.L().Error("create table failed", zap.String("sql", sql.SQLStmt), zap.Error(err))
-		}
+
+	g, _ := errgroup.WithContext(ctx)
+	for _, columnTypes := range ComposeAllColumnTypes(-1) {
+		colTs := make([]string, len(columnTypes))
+		copy(colTs, columnTypes)
+		g.Go(func() error {
+			sql, _ := p.Executor.GenerateDDLCreateTable(colTs)
+			return p.Executor.Exec(sql.SQLStmt)
+		})
+	}
+	if err := g.Wait(); err != nil {
+		log.L().Error("create table failed", zap.Error(err))
 	}
 
 	err := p.Executor.ReloadSchema()
@@ -118,7 +127,10 @@ func (p *Pivot) prepare(ctx context.Context) {
 	}
 
 	for _, table := range p.Executor.GetTables() {
-		sql, _ := p.Executor.GenerateDMLInsertByTable(table.Table)
+		sql, err := p.Executor.GenerateDMLInsertByTable(table.Table)
+		if err != nil {
+			panic(errors.ErrorStack(err))
+		}
 		err = p.Executor.Exec(sql.SQLStmt)
 		if err != nil {
 			log.L().Error("insert data failed", zap.String("sql", sql.SQLStmt), zap.Error(err))
@@ -145,6 +157,7 @@ func (p *Pivot) kickup(ctx context.Context) {
 				return
 			default:
 				for {
+					p.round++
 					p.progress(ctx)
 				}
 			}
@@ -168,17 +181,21 @@ func (p *Pivot) progress(ctx context.Context) {
 	// execute sql, ensure not null result set
 	resultRows, err := p.execSelect(selectStmt)
 	if err != nil {
-		panic(err)
+		log.L().Error("execSelect failed", zap.Error(err))
+		return
 	}
 	// verify pivot row in result row set
 	correct := p.verify(pivotRows, columns, resultRows)
 	if !correct {
-		panic(fmt.Sprintf("data verified failed. pivot rows: %v . result rows: %v . query: %s",
-			pivotRows, resultRows, selectStmt,
-		))
+		fmt.Printf("query:\n%s\n", selectStmt)
+		fmt.Printf("row:\n")
+		for column, value := range pivotRows {
+			fmt.Printf("%s.%s:%v\n", column.Table, column.Name, value.ValString)
+		}
+		panic("data verified failed")
 	}
 	fmt.Printf("run one statment [%s] successfully!\n", selectStmt)
-	log.Info("run one statment successfully!", zap.String("query", selectStmt))
+	// log.Info("run one statement successfully!", zap.String("query", selectStmt))
 }
 
 // may move to another struct
@@ -186,8 +203,12 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 	result := make(map[TableColumn]*connection.QueryItem)
 	count := 1
 	if len(p.Tables) > 1 {
-		count = Rd(len(p.Tables)-1) + 1
+		// avoid too deep joins
+		if count = Rd(len(p.Tables)-1) + 1; count > 4 {
+			count = Rd(4) + 1
+		}
 	}
+	fmt.Printf("#####count :%d", count)
 	rand.Shuffle(len(p.Tables), func(i, j int) { p.Tables[i], p.Tables[j] = p.Tables[j], p.Tables[i] })
 	usedTables := p.Tables[:count]
 	var reallyUsed []Table
@@ -208,11 +229,12 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 
 		}
 	}
+	fmt.Printf("####used %+v", reallyUsed)
 	return result, reallyUsed, nil
 }
 
 func (p *Pivot) GenSelectStmt(pivotRows map[TableColumn]*connection.QueryItem, usedTables []Table) (string, []TableColumn, error) {
-	stmtAst, err := p.selectStmtAst(6, usedTables)
+	stmtAst, err := p.selectStmtAst(1, usedTables)
 	if err != nil {
 		return "", nil, err
 	}
@@ -234,41 +256,41 @@ func (p *Pivot) ExecAndVerify(stmt string, originRow map[TableColumn]*connection
 
 // may not return string
 func (p *Pivot) execSelect(stmt string) ([][]*connection.QueryItem, error) {
+	fmt.Printf("exec: %s", stmt)
 	return p.Executor.GetConn().Select(stmt)
 }
 
-// TODO implement it
 func (p *Pivot) verify(originRow map[TableColumn]*connection.QueryItem, columns []TableColumn, resultSets [][]*connection.QueryItem) bool {
-	fmt.Println("=========  ORIGIN ROWS ======")
-	for k, v := range originRow {
-		fmt.Printf("key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
-	}
-
-	fmt.Println("=========  COLUMNS ======")
-	for _, c := range columns {
-		fmt.Printf("Table: %s, Name: %s\n", c.Table, c.Name)
-	}
-
 	for _, row := range resultSets {
 		if p.checkRow(originRow, columns, row) {
+			fmt.Printf("Round %d, verify pass! \n", p.round)
 			return true
 		}
 	}
-	fmt.Printf("=========  DATA ======, count: %d\n", len(resultSets))
-	for i, r := range resultSets {
-		fmt.Printf("$$$$$$$$$ line %d\n", i)
-		for j, c := range r {
-			fmt.Printf("  table: %s, field: %s, field: %s, value: %s\n", columns[j].Table, columns[j].Name, c.ValType.Name(), c.ValString)
-		}
-	}
+	//fmt.Println("=========  ORIGIN ROWS ======")
+	//for k, v := range originRow {
+	//	fmt.Printf("key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
+	//}
+	//
+	//fmt.Println("=========  COLUMNS ======")
+	//for _, c := range columns {
+	//	fmt.Printf("Table: %s, Name: %s\n", c.Table, c.Name)
+	//}
+	// fmt.Printf("=========  DATA ======, count: %d\n", len(resultSets))
+	// for i, r := range resultSets {
+	// 	fmt.Printf("$$$$$$$$$ line %d\n", i)
+	// 	for j, c := range r {
+	// 		fmt.Printf("  table: %s, field: %s, field: %s, value: %s\n", columns[j].Table, columns[j].Name, c.ValType.Name(), c.ValString)
+	// 	}
+	// }
 
-	fmt.Printf("Verify failed! \n")
+	fmt.Printf("Round %d, verify failed! \n", p.round)
 	return false
 }
 
 func (p *Pivot) checkRow(originRow map[TableColumn]*connection.QueryItem, columns []TableColumn, resultSet []*connection.QueryItem) bool {
 	for i, c := range columns {
-		fmt.Printf("i: %d, column: %+v, left: %+v, right: %+v", i, c, originRow[c], resultSet[i])
+		// fmt.Printf("i: %d, column: %+v, left: %+v, right: %+v", i, c, originRow[c], resultSet[i])
 		if !compareQueryItem(originRow[c], resultSet[i]) {
 			return false
 		}

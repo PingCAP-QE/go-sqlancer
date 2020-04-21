@@ -15,6 +15,7 @@ package stateflow
 
 import (
 	"fmt"
+
 	"github.com/cznic/mathutil"
 	"github.com/juju/errors"
 	"github.com/pingcap/parser/ast"
@@ -144,6 +145,11 @@ func (s *StateFlow) makeColumnOption(column *types.Column, option ast.ColumnOpti
 		columnOption.Expr = &node
 	}
 	return &columnOption
+}
+
+// MakeConstraintPrimaryKey expose makeConstraintPrimaryKey
+func (s *StateFlow) MakeConstraintPrimaryKey(node *ast.CreateTableStmt, column *types.Column) {
+	s.makeConstraintPrimaryKey(node, column)
 }
 
 // makeConstraintPromaryKey is for convenience

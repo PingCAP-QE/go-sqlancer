@@ -29,6 +29,8 @@ func Type2Tp(t string) byte {
 		return mysql.TypeDatetime
 	case "text":
 		return mysql.TypeBlob
+	case "float":
+		return mysql.TypeFloat
 	}
 	return mysql.TypeNull
 }

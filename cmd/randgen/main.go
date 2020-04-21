@@ -3,12 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math/rand"
+	"time"
+
 	"github.com/pingcap/log"
 	"github.com/chaos-mesh/private-wreck-it/pkg/executor"
 	"github.com/chaos-mesh/private-wreck-it/pkg/generator"
 	"go.uber.org/zap"
-	"math/rand"
-	"time"
 )
 
 var (
@@ -44,7 +45,7 @@ func doGenerate() error {
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for i := 0; i < r.Intn(10)+1; i++ {
-		sql, _ := e.GenerateDDLCreateTable()
+		sql, _ := e.GenerateDDLCreateTable(nil)
 		err := e.Exec(sql.SQLStmt)
 		if err != nil {
 			log.L().Error("create table failed", zap.String("sql", sql.SQLStmt), zap.Error(err))

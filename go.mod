@@ -16,6 +16,7 @@ require (
 	github.com/sirupsen/logrus v1.5.0 // indirect
 	github.com/stretchr/testify v1.5.1
 	go.uber.org/zap v1.14.0
+	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
 )
 

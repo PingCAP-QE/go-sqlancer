@@ -10,7 +10,12 @@ import (
 )
 
 var (
-	LogicXor = Function{nil, 2, 2, "XOR", func(a, b parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+	LogicXor = Function{nil, 2, 2, "XOR", func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		b := v[1]
 		e := parser_driver.ValueExpr{}
 		if a.Kind() == types.KindNull || b.Kind() == types.KindNull {
 			e.SetNull()
@@ -19,7 +24,12 @@ var (
 		e.SetValue(ConvertToBoolOrNull(a) != ConvertToBoolOrNull(b))
 		return e, nil
 	}}
-	LogicAnd = Function{nil, 2, 2, "AND", func(a, b parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+	LogicAnd = Function{nil, 2, 2, "AND", func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		b := v[1]
 		e := parser_driver.ValueExpr{}
 		boolA := ConvertToBoolOrNull(a)
 		boolB := ConvertToBoolOrNull(b)
@@ -34,7 +44,12 @@ var (
 		e.SetValue(true)
 		return e, nil
 	}}
-	LogicOr = Function{nil, 2, 2, "OR", func(a, b parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+	LogicOr = Function{nil, 2, 2, "OR", func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		b := v[1]
 		e := parser_driver.ValueExpr{}
 		boolA := ConvertToBoolOrNull(a)
 		boolB := ConvertToBoolOrNull(b)
@@ -49,8 +64,31 @@ var (
 		e.SetValue(false)
 		return e, nil
 	}}
+	Not = Function{nil, 1, 1, "NOT", func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 1 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		e := parser_driver.ValueExpr{}
+		boolA := ConvertToBoolOrNull(a)
+		if boolA == -1 {
+			e.SetValue(nil)
+			return e, nil
+		}
+		if boolA == 1 {
+			e.SetValue(false)
+			return e, nil
+		}
+		e.SetValue(true)
+		return e, nil
+	}}
 
-	Gt = Function{nil, 2, 2, "GT", func(a, b parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+	Gt = Function{nil, 2, 2, "GT", func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		b := v[1]
 		e := parser_driver.ValueExpr{}
 		if a.Kind() == types.KindNull || b.Kind() == types.KindNull {
 			e.SetNull()
@@ -59,7 +97,12 @@ var (
 		e.SetValue(compare(a, b) > 0)
 		return e, nil
 	}}
-	Lt = Function{nil, 2, 2, "LT", func(a, b parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+	Lt = Function{nil, 2, 2, "LT", func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		b := v[1]
 		e := parser_driver.ValueExpr{}
 		if a.Kind() == types.KindNull || b.Kind() == types.KindNull {
 			e.SetNull()
@@ -68,7 +111,12 @@ var (
 		e.SetValue(compare(a, b) < 0)
 		return e, nil
 	}}
-	Ne = Function{nil, 2, 2, "NE", func(a, b parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+	Ne = Function{nil, 2, 2, "NE", func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		b := v[1]
 		e := parser_driver.ValueExpr{}
 		if a.Kind() == types.KindNull || b.Kind() == types.KindNull {
 			e.SetNull()
@@ -77,7 +125,12 @@ var (
 		e.SetValue(compare(a, b) != 0)
 		return e, nil
 	}}
-	Eq = Function{nil, 2, 2, "EQ", func(a, b parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+	Eq = Function{nil, 2, 2, "EQ", func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		b := v[1]
 		e := parser_driver.ValueExpr{}
 		if a.Kind() == types.KindNull || b.Kind() == types.KindNull {
 			e.SetNull()
@@ -86,7 +139,12 @@ var (
 		e.SetValue(compare(a, b) == 0)
 		return e, nil
 	}}
-	Ge = Function{nil, 2, 2, "GE", func(a, b parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+	Ge = Function{nil, 2, 2, "GE", func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		b := v[1]
 		e := parser_driver.ValueExpr{}
 		if a.Kind() == types.KindNull || b.Kind() == types.KindNull {
 			e.SetNull()
@@ -95,7 +153,12 @@ var (
 		e.SetValue(compare(a, b) >= 0)
 		return e, nil
 	}}
-	Le = Function{nil, 2, 2, "LE", func(a, b parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+	Le = Function{nil, 2, 2, "LE", func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		b := v[1]
 		e := parser_driver.ValueExpr{}
 		if a.Kind() == types.KindNull || b.Kind() == types.KindNull {
 			e.SetNull()
@@ -107,9 +170,11 @@ var (
 )
 
 func init() {
-	for _, f := range []*Function{&LogicXor, &LogicAnd, &LogicOr} {
+	for _, f := range []*Function{&LogicXor, &LogicAnd, &LogicOr, &Not} {
 		f.AcceptType = make([]map[int]int, 0)
 		f.AcceptType = append(f.AcceptType, *f.NewAcceptTypeMap())
+		f.AcceptType = append(f.AcceptType, *f.NewAcceptTypeMap())
+		// is useless for NOT op
 		f.AcceptType = append(f.AcceptType, *f.NewAcceptTypeMap())
 	}
 

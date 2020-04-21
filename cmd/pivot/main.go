@@ -28,7 +28,7 @@ func main() {
 	}
 
 	//p.Conf.Dsn = "root@tcp(127.0.0.1:4000)/test"
-	ctx, _ := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Minute)
 	fmt.Printf("start pivot test\n")
 	p.Start(ctx)
 	fmt.Printf("wait for finish\n")
