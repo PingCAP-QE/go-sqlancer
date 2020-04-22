@@ -17,6 +17,8 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+
+	"github.com/chaos-mesh/private-wreck-it/pkg/util"
 )
 
 // Table defines database table
@@ -46,7 +48,7 @@ func (a byColumn) Less(i, j int) bool {
 		bj = []byte(a[j].Column)
 	)
 
-	for i := 0; i < min(len(bi), len(bj)); i++ {
+	for i := 0; i < util.Min(len(bi), len(bj)); i++ {
 		if bi[i] != bj[i] {
 			return bi[i] < bj[i]
 		}
