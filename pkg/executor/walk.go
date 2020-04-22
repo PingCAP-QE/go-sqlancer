@@ -142,7 +142,11 @@ func randList(columns []*types.Column) []ast.ExprNode {
 		// GenerateEnumDataItem
 		switch Rd(3) {
 		case 0:
-			list = append(list, ast.NewValueExpr(nil, "", ""))
+			if column.HasOption(ast.ColumnOptionNotNull) {
+				list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column), "", ""))
+			} else {
+				list = append(list, ast.NewValueExpr(nil, "", ""))
+			}
 		default:
 			list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column), "", ""))
 		}
