@@ -9,10 +9,10 @@ import (
 )
 
 // GenerateDDLCreateTable rand create table statement
-func (e *Executor) GenerateDDLCreateTable(colTypes []string) (*types.SQL, error) {
+func (e *Executor) GenerateDDLCreateTable(index int, colTypes []string) (*types.SQL, error) {
 	tree := createTableStmt()
 
-	stmt, table, err := e.walkDDLCreateTable(tree, colTypes)
+	stmt, table, err := e.walkDDLCreateTable(index, tree, colTypes)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

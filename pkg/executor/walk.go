@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/chaos-mesh/private-wreck-it/pkg/types"
+	"github.com/chaos-mesh/private-wreck-it/pkg/util"
 	"github.com/juju/errors"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
@@ -12,25 +13,26 @@ import (
 	parserTypes "github.com/pingcap/parser/types"
 )
 
-func (e *Executor) walkDDLCreateTable(node *ast.CreateTableStmt, colTypes []string) (string, string, error) {
+func (e *Executor) walkDDLCreateTable(index int, node *ast.CreateTableStmt, colTypes []string) (string, string, error) {
 	table := fmt.Sprintf("%s_%s", "table", strings.Join(colTypes, "_"))
+	idColName := fmt.Sprintf("id_%d", index)
 
 	idFieldType := parserTypes.NewFieldType(Type2Tp("int"))
 	idFieldType.Flen = dataType2Len("int")
 	idCol := &ast.ColumnDef{
-		Name:    &ast.ColumnName{Name: model.NewCIStr(fmt.Sprintf("id"))},
+		Name:    &ast.ColumnName{Name: model.NewCIStr(idColName)},
 		Tp:      idFieldType,
 		Options: []*ast.ColumnOption{{Tp: ast.ColumnOptionAutoIncrement}},
 	}
 	node.Cols = append(node.Cols, idCol)
-	makeConstraintPrimaryKey(node, "id")
+	makeConstraintPrimaryKey(node, idColName)
 
 	node.Table.Name = model.NewCIStr(table)
 	for _, colType := range colTypes {
 		fieldType := parserTypes.NewFieldType(Type2Tp(colType))
 		fieldType.Flen = dataType2Len(colType)
 		node.Cols = append(node.Cols, &ast.ColumnDef{
-			Name: &ast.ColumnName{Name: model.NewCIStr(fmt.Sprintf("col_%s", colType))},
+			Name: &ast.ColumnName{Name: model.NewCIStr(fmt.Sprintf("col_%s_%d", colType, index))},
 			Tp:   fieldType,
 		})
 	}
@@ -47,17 +49,17 @@ func (e *Executor) walkDDLCreateIndex(node *ast.CreateIndexStmt) (string, error)
 		return "", errors.New("no table available")
 	}
 	node.Table.Name = model.NewCIStr(table.Table)
-	node.IndexName = RdStringChar(5)
+	node.IndexName = util.RdStringChar(5)
 	for _, column := range table.Columns {
 		name := column.Column
 		if column.DataType == "text" {
-			length := Rd(31) + 1
+			length := util.Rd(31) + 1
 			name = fmt.Sprintf("%s(%d)", name, length)
 		} else if column.DataType == "varchar" {
 			length := 1
 			if column.DataLen > 1 {
-				maxLen := MinInt(column.DataLen, 32)
-				length = Rd(maxLen-1) + 1
+				maxLen := util.MinInt(column.DataLen, 32)
+				length = util.Rd(maxLen-1) + 1
 			}
 			name = fmt.Sprintf("%s(%d)", name, length)
 		}
@@ -69,7 +71,7 @@ func (e *Executor) walkDDLCreateIndex(node *ast.CreateIndexStmt) (string, error)
 			})
 	}
 	if len(node.IndexPartSpecifications) > 10 {
-		node.IndexPartSpecifications = node.IndexPartSpecifications[:Rd(10)+1]
+		node.IndexPartSpecifications = node.IndexPartSpecifications[:util.Rd(10)+1]
 	}
 	return BufferOut(node)
 }
@@ -88,7 +90,7 @@ func (e *Executor) walkInsertStmtForTable(node *ast.InsertStmt, tableName string
 func (e *Executor) walkColumns(columns *[]*ast.ColumnName, table *types.Table) []*types.Column {
 	var cols []*types.Column
 	for _, column := range table.Columns {
-		if column.Column == "id" {
+		if strings.HasPrefix(column.Column, "id_") || column.Column == "id" {
 			continue
 		}
 		*columns = append(*columns, &ast.ColumnName{
@@ -103,11 +105,12 @@ func (e *Executor) walkColumns(columns *[]*ast.ColumnName, table *types.Table) [
 func (e *Executor) walkLists(lists *[][]ast.ExprNode, columns []*types.Column) {
 	var noIDColumns []*types.Column
 	for _, column := range columns {
-		if column.Column != "id" {
-			noIDColumns = append(noIDColumns, column)
+		if strings.HasPrefix(column.Column, "id_") || column.Column == "id" {
+			continue
 		}
+		noIDColumns = append(noIDColumns, column)
 	}
-	count := RdRange(10, 20)
+	count := util.RdRange(10, 20)
 	for i := 0; i < count; i++ {
 		*lists = append(*lists, randList(noIDColumns))
 	}
@@ -140,7 +143,7 @@ func randList(columns []*types.Column) []ast.ExprNode {
 	var list []ast.ExprNode
 	for _, column := range columns {
 		// GenerateEnumDataItem
-		switch Rd(3) {
+		switch util.Rd(3) {
 		case 0:
 			if column.HasOption(ast.ColumnOptionNotNull) {
 				list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column), "", ""))
@@ -162,7 +165,7 @@ func (e *Executor) randTable() *types.Table {
 	if len(tables) == 0 {
 		return nil
 	}
-	return tables[Rd(len(tables))]
+	return tables[util.Rd(len(tables))]
 }
 
 // Type2Tp conver type string to tp byte

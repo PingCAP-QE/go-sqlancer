@@ -3,6 +3,8 @@ package executor
 import (
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
+
+	"github.com/chaos-mesh/private-wreck-it/pkg/util"
 )
 
 func createTableStmt() *ast.CreateTableStmt {
@@ -21,7 +23,7 @@ func createTableStmt() *ast.CreateTableStmt {
 
 func createIndexStmt() *ast.CreateIndexStmt {
 	var indexType model.IndexType
-	switch Rd(2) {
+	switch util.Rd(2) {
 	case 0:
 		indexType = model.IndexTypeBtree
 	default:
