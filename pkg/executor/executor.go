@@ -14,14 +14,12 @@
 package executor
 
 import (
-	"github.com/chaos-mesh/private-wreck-it/pkg/go-sqlsmith/types"
 	"regexp"
 
 	"github.com/juju/errors"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/go-sqlsmith"
-
 	"github.com/chaos-mesh/private-wreck-it/pkg/connection"
+	"github.com/chaos-mesh/private-wreck-it/pkg/types"
 )
 
 var (
@@ -30,9 +28,9 @@ var (
 
 // Executor define test executor
 type Executor struct {
-	conn *connection.Connection
-	ss   *sqlsmith.SQLSmith
-	db   string
+	conn   *connection.Connection
+	db     string
+	tables map[string]*types.Table
 }
 
 // New create Executor
@@ -47,13 +45,14 @@ func New(dsn string, db string) (*Executor, error) {
 	}
 
 	e := Executor{
-		conn: conn,
-		ss:   sqlsmith.New(),
-		db:   db,
+		conn:   conn,
+		db:     db,
+		tables: make(map[string]*types.Table),
 	}
 	return &e, nil
 }
 
+// GetTables get table map
 func (e *Executor) GetTables() map[string]*types.Table {
-	return e.ss.Databases[e.db].Tables
+	return e.tables
 }

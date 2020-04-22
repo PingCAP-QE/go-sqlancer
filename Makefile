@@ -5,10 +5,7 @@ VERSION   := $(if $(VERSION),$(VERSION),latest)
 
 GOBUILD=$(GO) build
 
-default: randgen
-
-randgen:
-	$(GOBUILD) $(GOMOD) -o bin/randgen cmd/randgen/*.go
+default: pivot
 
 pivot:
 	$(GOBUILD) $(GOMOD) -o bin/pivot cmd/pivot/*.go

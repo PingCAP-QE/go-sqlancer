@@ -1,17 +1,4 @@
-// Copyright 2019 PingCAP, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-package data_gen
+package executor
 
 import (
 	"fmt"
@@ -19,8 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/go-sqlsmith/types"
-	"github.com/chaos-mesh/private-wreck-it/pkg/go-sqlsmith/util"
+	"github.com/chaos-mesh/private-wreck-it/pkg/types"
 
 	"github.com/pingcap/parser/mysql"
 	tidbTypes "github.com/pingcap/tidb/types"
@@ -28,7 +14,7 @@ import (
 )
 
 var (
-	stringEnums = []string{"", "0", "-0", "1", "-1", "true", "false", " ", "NULL", "2020-02-02 02:02:00"}
+	stringEnums = []string{"", "0", "-0", "1", "-1", "true", "false", " ", "NULL", "2020-02-02 02:02:00", "0000-00-00 00:00:00"}
 	intEnums    = []int{0, 1, -1, 65535}
 	floatEnums  = []float64{0, 0.1, 1.0000, -0.1, -1.0000, 0.5, 1.5}
 	timeEnums   = []tidbTypes.CoreTime{
@@ -47,7 +33,7 @@ func GetUUID() string {
 // GenerateRandDataItem rand data item with rand type
 func GenerateRandDataItem() interface{} {
 	var dataType string
-	switch util.Rd(6) {
+	switch Rd(6) {
 	case 0:
 		dataType = "varchar"
 	case 1:
@@ -90,7 +76,7 @@ func GenerateDataItemString(column *types.Column) string {
 func GenerateDataItem(column *types.Column) interface{} {
 	var res interface{}
 	// there will be 1/3 possibility return nil
-	//if !column.HasOption(ast.ColumnOptionNotNull) && util.RdRange(0, 3) == 0 {
+	//if !column.HasOption(ast.ColumnOptionNotNull) && RdRange(0, 3) == 0 {
 	//	return nil
 	//}
 	switch column.DataType {
@@ -114,7 +100,7 @@ func GenerateDataItem(column *types.Column) interface{} {
 func GenerateZeroDataItem(column *types.Column) interface{} {
 	var res interface{}
 	// there will be 1/3 possibility return nil
-	//if !column.HasOption(ast.ColumnOptionNotNull) && util.RdRange(0, 3) == 0 {
+	//if !column.HasOption(ast.ColumnOptionNotNull) && RdRange(0, 3) == 0 {
 	//	return nil
 	//}
 	switch column.DataType {
@@ -138,22 +124,22 @@ func GenerateZeroDataItem(column *types.Column) interface{} {
 func GenerateEnumDataItem(column *types.Column) interface{} {
 	var res interface{}
 	// there will be 1/3 possibility return nil
-	//if !column.HasOption(ast.ColumnOptionNotNull) && util.RdRange(0, 3) == 0 {
+	//if !column.HasOption(ast.ColumnOptionNotNull) && RdRange(0, 3) == 0 {
 	//	return nil
 	//}
 	switch column.DataType {
 	case "varchar":
-		res = stringEnums[util.Rd(len(stringEnums))]
+		res = stringEnums[Rd(len(stringEnums))]
 	case "text":
-		res = stringEnums[util.Rd(len(stringEnums))]
+		res = stringEnums[Rd(len(stringEnums))]
 	case "int":
-		res = intEnums[util.Rd(len(intEnums))]
+		res = intEnums[Rd(len(intEnums))]
 	case "datetime":
-		res = tidbTypes.NewTime(timeEnums[util.Rd(len(timeEnums))], mysql.TypeDatetime, 0)
+		res = tidbTypes.NewTime(timeEnums[Rd(len(timeEnums))], mysql.TypeDatetime, 0)
 	case "timestamp":
-		res = tidbTypes.NewTime(timeEnums[util.Rd(len(timeEnums))], mysql.TypeDatetime, 0)
+		res = tidbTypes.NewTime(timeEnums[Rd(len(timeEnums))], mysql.TypeDatetime, 0)
 	case "float":
-		res = floatEnums[util.Rd(len(floatEnums))]
+		res = floatEnums[Rd(len(floatEnums))]
 	}
 	return res
 }
@@ -164,33 +150,33 @@ func GenerateStringItem() string {
 }
 
 func GenerateStringItemLen(length int) string {
-	return util.RdStringChar(util.Rd(length))
+	return RdStringChar(Rd(length))
 }
 
 // GenerateIntItem generate int item
 func GenerateIntItem() int {
-	return util.Rd(2147483647)
+	return Rd(2147483647)
 }
 
 // GenerateFloatItem generate float item
 func GenerateFloatItem() float64 {
-	return float64(util.Rd(100000)) * util.RdFloat64()
+	return float64(Rd(100000)) * RdFloat64()
 }
 
 // GenerateDateItem generate date item
 func GenerateDateItem() time.Time {
-	t := util.RdDate()
+	t := RdDate()
 	for ifDaylightTime(t) {
-		t = util.RdDate()
+		t = RdDate()
 	}
 	return t
 }
 
 // GenerateTimestampItem generate timestamp item
 func GenerateTimestampItem() time.Time {
-	t := util.RdTimestamp()
+	t := RdTimestamp()
 	for ifDaylightTime(t) {
-		t = util.RdTimestamp()
+		t = RdTimestamp()
 	}
 	return t
 }
