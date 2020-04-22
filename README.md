@@ -13,3 +13,9 @@ bin/pivot -d "root@tcp(127.0.0.1:4000)/"
   - [x] NOT
 - [ ] View
 - [ ] Partition
+
+## Issues
+- https://github.com/pingcap/tidb/issues/16716
+- https://github.com/pingcap/tidb/issues/16679
+- https://github.com/pingcap/tidb/issues/16599
+- https://github.com/pingcap/tidb/issues/16677
