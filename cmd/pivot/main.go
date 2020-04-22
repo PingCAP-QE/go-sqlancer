@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/chaos-mesh/private-wreck-it/pkg/pivot"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 var (

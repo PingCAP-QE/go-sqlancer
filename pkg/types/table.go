@@ -14,10 +14,9 @@
 package types
 
 import (
+	"math/rand"
 	"sort"
 	"strings"
-
-	"github.com/chaos-mesh/private-wreck-it/pkg/go-sqlsmith/util"
 )
 
 // Table defines database table
@@ -55,13 +54,6 @@ func (a byColumn) Less(i, j int) bool {
 	return len(bi) < len(bj)
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // Clone copy table struct
 func (t *Table) Clone() *Table {
 	newTable := Table{
@@ -86,7 +78,7 @@ func (t *Table) RandColumn() *Column {
 	if len(t.Columns) == 0 {
 		return nil
 	}
-	rdIndex := util.Rd(len(t.Columns))
+	rdIndex := rand.Intn(len(t.Columns))
 	index := 0
 	for _, column := range t.Columns {
 		if rdIndex == index {
@@ -113,7 +105,7 @@ func (t *Table) RandIndex() string {
 	if len(t.Indexes) == 0 {
 		return ""
 	}
-	return t.Indexes[util.Rd(len(t.Indexes))]
+	return t.Indexes[rand.Intn(len(t.Indexes))]
 }
 
 // AddToInnerTables Do NOT set InnerTableList directly

@@ -31,10 +31,3 @@ func (a BySQL) Less(i, j int) bool {
 	}
 	return len(bi) < len(bj)
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

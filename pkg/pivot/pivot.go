@@ -8,11 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/juju/errors"
-	"github.com/pingcap/log"
 	"github.com/chaos-mesh/private-wreck-it/pkg/connection"
 	"github.com/chaos-mesh/private-wreck-it/pkg/executor"
-	"github.com/chaos-mesh/private-wreck-it/pkg/generator"
+	"github.com/juju/errors"
+	"github.com/pingcap/log"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
@@ -113,12 +112,8 @@ func (p *Pivot) prepare(ctx context.Context) {
 	if err != nil {
 		log.Error("reload data failed!")
 	}
-	ddlOpt := &generator.DDLOptions{
-		OnlineDDL: true,
-		Tables:    []string{},
-	}
 	for i := 0; i < r.Intn(10); i++ {
-		sql, _ := p.Executor.GenerateDDLCreateIndex(ddlOpt)
+		sql, _ := p.Executor.GenerateDDLCreateIndex()
 		fmt.Println(sql)
 		err = p.Executor.Exec(sql.SQLStmt)
 		if err != nil {
