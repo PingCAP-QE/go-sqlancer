@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/ngaut/log"
+
+	"github.com/chaos-mesh/private-wreck-it/pkg/util"
 )
 
 // Select run select statement and return query result
@@ -168,4 +170,11 @@ func (c *Connection) ShowDatabases() ([]string, error) {
 		}
 	}
 	return dbs, nil
+}
+
+// CreateViewBySelect create veiw from select statement
+func (c *Connection) CreateViewBySelect(view, selectStmt string, rows int) error {
+	viewStmt := fmt.Sprintf("CREATE VIEW `%s` AS %s LIMIT %d, %d", view, selectStmt, util.Rd(rows), util.RdRange(5, 15))
+	_, err := c.db.Exec(viewStmt)
+	return err
 }

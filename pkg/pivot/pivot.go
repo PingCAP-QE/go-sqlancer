@@ -25,6 +25,7 @@ type Pivot struct {
 	DBName   string
 	Executor *executor.Executor
 	round    int
+	views    int
 
 	Generator
 }
@@ -43,6 +44,7 @@ func NewPivot(dsn string, DBName string) (*Pivot, error) {
 		Conf:      conf,
 		DBName:    DBName,
 		Executor:  e,
+		views:     10,
 		Generator: Generator{},
 	}, nil
 }
@@ -54,11 +56,13 @@ const (
 	indexColumnName = "Key_name"
 )
 
+// Start Pivot
 func (p *Pivot) Start(ctx context.Context) {
 	p.cleanup(ctx)
 	p.kickup(ctx)
 }
 
+// Close Pivot
 func (p *Pivot) Close() {
 	p.wg.Wait()
 	p.cleanup(context.Background())
@@ -66,6 +70,7 @@ func (p *Pivot) Close() {
 
 }
 
+// Init Pivot
 func (p *Pivot) Init(ctx context.Context) {
 	rand.Seed(time.Now().UnixNano())
 	p.Tables = make([]Table, 0)
@@ -96,11 +101,12 @@ func (p *Pivot) prepare(ctx context.Context) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	g, _ := errgroup.WithContext(ctx)
-	for _, columnTypes := range ComposeAllColumnTypes(-1) {
+	for index, columnTypes := range ComposeAllColumnTypes(-1) {
+		tableIndex := index
 		colTs := make([]string, len(columnTypes))
 		copy(colTs, columnTypes)
 		g.Go(func() error {
-			sql, _ := p.Executor.GenerateDDLCreateTable(colTs)
+			sql, _ := p.Executor.GenerateDDLCreateTable(tableIndex, colTs)
 			return p.Executor.Exec(sql.SQLStmt)
 		})
 	}
@@ -189,10 +195,23 @@ func (p *Pivot) progress(ctx context.Context) {
 		}
 		panic("data verified failed")
 	}
+	fmt.Printf("run one statment [%s] successfully!\n", selectStmt)
+	if p.round <= p.views {
+		if err := p.Executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.round), selectStmt, len(resultRows)); err != nil {
+			fmt.Println("create view failed")
+			panic(err)
+		}
+	}
+	if p.round == p.views {
+		if err := p.Executor.ReloadSchema(); err != nil {
+			panic(err)
+		}
+	}
 	// log.Info("run one statement successfully!", zap.String("query", selectStmt))
 }
 
-// may move to another struct
+// ChoosePivotedRow choose a row
+// it may move to another struct
 func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Table, error) {
 	result := make(map[TableColumn]*connection.QueryItem)
 	count := 1
@@ -258,15 +277,15 @@ func (p *Pivot) verify(originRow map[TableColumn]*connection.QueryItem, columns 
 			return true
 		}
 	}
-	//fmt.Println("=========  ORIGIN ROWS ======")
-	//for k, v := range originRow {
-	//	fmt.Printf("key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
-	//}
-	//
-	//fmt.Println("=========  COLUMNS ======")
-	//for _, c := range columns {
-	//	fmt.Printf("Table: %s, Name: %s\n", c.Table, c.Name)
-	//}
+	fmt.Println("=========  ORIGIN ROWS ======")
+	for k, v := range originRow {
+		fmt.Printf("key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
+	}
+
+	fmt.Println("=========  COLUMNS ======")
+	for _, c := range columns {
+		fmt.Printf("Table: %s, Name: %s\n", c.Table, c.Name)
+	}
 	// fmt.Printf("=========  DATA ======, count: %d\n", len(resultSets))
 	// for i, r := range resultSets {
 	// 	fmt.Printf("$$$$$$$$$ line %d\n", i)
