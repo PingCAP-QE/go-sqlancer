@@ -17,8 +17,6 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
-
-	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
 // Table defines database table
@@ -40,6 +38,13 @@ type Table struct {
 
 type byColumn []*Column
 
+func min(a, b int) int {
+	if a > b {
+		return b
+	}
+	return a
+}
+
 func (a byColumn) Len() int      { return len(a) }
 func (a byColumn) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a byColumn) Less(i, j int) bool {
@@ -48,7 +53,7 @@ func (a byColumn) Less(i, j int) bool {
 		bj = []byte(a[j].Column)
 	)
 
-	for i := 0; i < util.Min(len(bi), len(bj)); i++ {
+	for i := 0; i < min(len(bi), len(bj)); i++ {
 		if bi[i] != bj[i] {
 			return bi[i] < bj[i]
 		}

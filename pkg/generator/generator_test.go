@@ -1,8 +1,9 @@
-package pivot
+package generator
 
 import (
 	"testing"
 
+	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
@@ -38,7 +39,7 @@ func TestCase1(t *testing.T) {
 		Name:    model.NewCIStr("t0"),
 		Columns: [][3]string{{"c0", "float", "YES"}},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
+	}}, map[Column]interface{}{
 		TableColumn{Table: "t0", Name: "c0"}: 1,
 	})
 	require.Equal(t, true, isTrueValue(value))

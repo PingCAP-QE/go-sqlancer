@@ -8,9 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
-
 	"github.com/juju/errors"
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
@@ -18,9 +15,14 @@ import (
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
 	"github.com/chaos-mesh/go-sqlancer/pkg/executor"
+	"github.com/chaos-mesh/go-sqlancer/pkg/generator"
+	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
+	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
 type Pivot struct {
@@ -30,7 +32,7 @@ type Pivot struct {
 	Executor *executor.Executor
 	round    int
 
-	Generator
+	generator.Generator
 }
 
 // NewPivot ...
@@ -42,7 +44,7 @@ func NewPivot(conf *Config) (*Pivot, error) {
 	return &Pivot{
 		Conf:      conf,
 		Executor:  e,
-		Generator: Generator{},
+		Generator: generator.Generator{},
 	}, nil
 }
 
@@ -115,8 +117,12 @@ func (p *Pivot) prepare(ctx context.Context) {
 	if err != nil {
 		log.Error("reload data failed!")
 	}
+	ddlOpt := &generator.DDLOptions{
+		OnlineDDL: true,
+		Tables:    []string{},
+	}
 	for i := 0; i < r.Intn(10); i++ {
-		sql, _ := p.Executor.GenerateDDLCreateIndex()
+		sql, _ := p.Executor.GenerateDDLCreateIndex(ddlOpt)
 		fmt.Println(sql)
 		err = p.Executor.Exec(sql.SQLStmt)
 		if err != nil {
