@@ -30,7 +30,7 @@ func NewAcceptTypeMap() *map[int]int {
 	return &m
 }
 
-type Evaluable = func(a ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error)
+type Evaluable = func(...parser_driver.ValueExpr) (parser_driver.ValueExpr, error)
 
 type OpFuncEval interface {
 	GetMinArgs() int
