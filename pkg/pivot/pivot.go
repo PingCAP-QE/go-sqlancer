@@ -22,29 +22,21 @@ type Pivot struct {
 	wg       sync.WaitGroup
 	Conf     *Config
 	DB       *sql.DB
-	DBName   string
 	Executor *executor.Executor
 	round    int
-	views    int
 
 	Generator
 }
 
-func NewPivot(dsn string, DBName string) (*Pivot, error) {
-	e, err := executor.New(dsn, "test")
+// NewPivot ...
+func NewPivot(conf *Config) (*Pivot, error) {
+	e, err := executor.New(conf.DSN, conf.DBName)
 	if err != nil {
 		return nil, err
 	}
-	conf := &Config{
-		Dsn:         dsn,
-		PrepareStmt: false,
-		Hint:        false,
-	}
 	return &Pivot{
 		Conf:      conf,
-		DBName:    DBName,
 		Executor:  e,
-		views:     10,
 		Generator: Generator{},
 	}, nil
 }
@@ -76,17 +68,17 @@ func (p *Pivot) Init(ctx context.Context) {
 	p.Tables = make([]Table, 0)
 
 	// Warn: Hard code db name
-	tables, err := p.Executor.GetConn().FetchTables(p.DBName)
+	tables, err := p.Executor.GetConn().FetchTables(p.Conf.DBName)
 	if err != nil {
 		panic(err)
 	}
 	for _, i := range tables {
 		t := Table{Name: model.NewCIStr(i)}
-		t.Columns, err = p.Executor.GetConn().FetchColumns(p.DBName, i)
+		t.Columns, err = p.Executor.GetConn().FetchColumns(p.Conf.DBName, i)
 		if err != nil {
 			panic(err)
 		}
-		idx, err := p.Executor.GetConn().FetchIndexes(p.DBName, i)
+		idx, err := p.Executor.GetConn().FetchIndexes(p.Conf.DBName, i)
 		if err != nil {
 			panic(err)
 		}
@@ -140,9 +132,9 @@ func (p *Pivot) prepare(ctx context.Context) {
 }
 
 func (p *Pivot) cleanup(ctx context.Context) {
-	p.Executor.Exec("drop database if exists " + p.DBName)
-	p.Executor.Exec("create database " + p.DBName)
-	p.Executor.Exec("use " + p.DBName)
+	p.Executor.Exec("drop database if exists " + p.Conf.DBName)
+	p.Executor.Exec("create database " + p.Conf.DBName)
+	p.Executor.Exec("use " + p.Conf.DBName)
 }
 
 func (p *Pivot) kickup(ctx context.Context) {
@@ -196,13 +188,13 @@ func (p *Pivot) progress(ctx context.Context) {
 		panic("data verified failed")
 	}
 	fmt.Printf("run one statment [%s] successfully!\n", selectStmt)
-	if p.round <= p.views {
+	if p.round <= p.Conf.ViewCount {
 		if err := p.Executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.round), selectStmt, len(resultRows)); err != nil {
 			fmt.Println("create view failed")
 			panic(err)
 		}
 	}
-	if p.round == p.views {
+	if p.round == p.Conf.ViewCount {
 		if err := p.Executor.ReloadSchema(); err != nil {
 			panic(err)
 		}

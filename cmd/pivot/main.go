@@ -10,38 +10,59 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+const (
+	nmDSN       = "dsn"
+	nmViewCount = "view"
+	nmDuration  = "duration"
+)
+
 var (
-	cfg = pivot.NewConfig()
-	dsn = flag.String("d", "", "dsn of target db for testing")
+	conf      = pivot.NewConfig()
+	dsn       = flag.String(nmDSN, "", "dsn of target db for testing")
+	viewCount = flag.Int(nmViewCount, 10, "count of views to be created")
+	duration  = flag.Duration(nmDuration, 5*time.Minute, "fuzz duration")
 )
 
 func main() {
-	// p.Start(context.Background())
-	// flag.StringVar(&dsn, "d", "", "dsn of target db for testing")
+	flag.Parse()
+	loadConfig()
+
 	if *dsn == "" {
 		panic("no dsn in arguments")
 	}
 
-	p, err := pivot.NewPivot(*dsn, "test")
+	p, err := pivot.NewPivot(conf)
 	if err != nil {
 		panic(fmt.Sprintf("new pivot failed, error: %+v\n", err))
 	}
 
-	//p.Conf.Dsn = "root@tcp(127.0.0.1:4000)/test"
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), *duration)
+	defer cancel()
 	fmt.Printf("start pivot test\n")
 	p.Start(ctx)
 	fmt.Printf("wait for finish\n")
-	for {
-		select {
-		case <-ctx.Done():
-			p.Close()
-		default:
-		}
-	}
+
+	<-ctx.Done()
+	p.Close()
 }
 
-func init() {
+func loadConfig() {
+	actualFlags := make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) {
+		actualFlags[f.Name] = true
+	})
+
+	if actualFlags[nmDSN] {
+		if err := conf.SetDSN(*dsn); err != nil {
+			panic(err)
+		}
+	} else {
+		panic("empty dsn")
+	}
+
+	if actualFlags[nmViewCount] {
+		conf.ViewCount = *viewCount
+	}
 
 	flag.Parse()
 }
