@@ -200,8 +200,10 @@ func (p *Pivot) progress(ctx context.Context) {
 		for column, value := range pivotRows {
 			fmt.Printf("%s.%s:%v\n", column.Table, column.Name, value.ValString)
 		}
-		return
-		//panic("data verified failed")
+		if p.Conf.Silent && p.round >= p.Conf.ViewCount {
+			return
+		}
+		panic("data verified failed")
 	}
 	if p.round <= p.Conf.ViewCount {
 		if err := p.Executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.round), selectSQL, len(resultRows)); err != nil {

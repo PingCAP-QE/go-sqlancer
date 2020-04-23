@@ -15,6 +15,7 @@ const (
 	nmViewCount = "view"
 	nmDuration  = "duration"
 	sqlDepth    = "depth"
+	silentMode  = "silent"
 )
 
 var (
@@ -23,6 +24,7 @@ var (
 	viewCount = flag.Int(nmViewCount, 10, "count of views to be created")
 	duration  = flag.Duration(nmDuration, 5*time.Minute, "fuzz duration")
 	depth     = flag.Int(sqlDepth, 1, "sql depth")
+	silent    = flag.Bool(silentMode, false, "silent when verify failed")
 )
 
 func main() {
@@ -62,5 +64,8 @@ func loadConfig() {
 	}
 	if actualFlags[sqlDepth] {
 		conf.Depth = *depth
+	}
+	if actualFlags[silentMode] {
+		conf.Silent = *silent
 	}
 }
