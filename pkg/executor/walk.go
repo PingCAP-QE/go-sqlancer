@@ -87,22 +87,22 @@ func (e *Executor) walkInsertStmtForTable(node *ast.InsertStmt, tableName string
 	return BufferOut(node)
 }
 
-func (e *Executor) walkColumns(columns *[]*ast.ColumnName, table *types.Table) []*types.Column {
-	var cols []*types.Column
+func (e *Executor) walkColumns(columns *[]*ast.ColumnName, table *types.Table) [][3]string {
+	var cols [][3]string
 	for _, column := range table.Columns {
 		if strings.HasPrefix(column.Column, "id_") || column.Column == "id" {
 			continue
 		}
 		*columns = append(*columns, &ast.ColumnName{
-			Table: model.NewCIStr(column.Table),
-			Name:  model.NewCIStr(column.Column),
+			Table: model.NewCIStr(table.Name),
+			Name:  model.NewCIStr(column[0]),
 		})
 		cols = append(cols, column)
 	}
 	return cols
 }
 
-func (e *Executor) walkLists(lists *[][]ast.ExprNode, columns []*types.Column) {
+func (e *Executor) walkLists(lists *[][]ast.ExprNode, columns [][3]string) {
 	var noIDColumns []*types.Column
 	for _, column := range columns {
 		if strings.HasPrefix(column.Column, "id_") || column.Column == "id" {
