@@ -25,6 +25,10 @@ import (
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
+var (
+	allColumnTypes = []string{"int", "float", "varchar"}
+)
+
 type Pivot struct {
 	wg       sync.WaitGroup
 	Conf     *Config
@@ -100,7 +104,7 @@ func (p *Pivot) prepare(ctx context.Context) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	g, _ := errgroup.WithContext(ctx)
-	for index, columnTypes := range ComposeAllColumnTypes(-1) {
+	for index, columnTypes := range ComposeAllColumnTypes(-1, allColumnTypes) {
 		tableIndex := index
 		colTs := make([]string, len(columnTypes))
 		copy(colTs, columnTypes)
@@ -117,12 +121,8 @@ func (p *Pivot) prepare(ctx context.Context) {
 	if err != nil {
 		log.Error("reload data failed!")
 	}
-	ddlOpt := &generator.DDLOptions{
-		OnlineDDL: true,
-		Tables:    []string{},
-	}
 	for i := 0; i < r.Intn(10); i++ {
-		sql, _ := p.Executor.GenerateDDLCreateIndex(ddlOpt)
+		sql, _ := p.Executor.GenerateDDLCreateIndex()
 		fmt.Println(sql)
 		err = p.Executor.Exec(sql.SQLStmt)
 		if err != nil {
@@ -131,7 +131,7 @@ func (p *Pivot) prepare(ctx context.Context) {
 	}
 
 	for _, table := range p.Executor.GetTables() {
-		sql, err := p.Executor.GenerateDMLInsertByTable(table.Table)
+		sql, err := p.Executor.GenerateDMLInsertByTable(table.Name.L)
 		if err != nil {
 			panic(errors.ErrorStack(err))
 		}
@@ -261,11 +261,11 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 }
 
 func (p *Pivot) GenSelectStmt(pivotRows map[TableColumn]*connection.QueryItem, usedTables []Table) (*ast.SelectStmt, string, []TableColumn, error) {
-	stmtAst, err := p.selectStmtAst(p.Conf.Depth, usedTables)
+	stmtAst, err := p.SelectStmtAst(p.Conf.Depth, usedTables)
 	if err != nil {
 		return nil, "", nil, err
 	}
-	sql, columns, err := p.selectStmt(&stmtAst, usedTables, pivotRows)
+	sql, columns, err := p.SelectStmt(&stmtAst, usedTables, pivotRows)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -418,7 +418,7 @@ func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Tab
 
 func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[TableColumn]*connection.QueryItem, exist bool) bool {
 	where := sel.Where
-	out := Evaluate(where, usedTables, pivotRows)
+	out := generator.Evaluate(where, usedTables, pivotRows)
 
 	switch out.Kind() {
 	case tidb_types.KindNull:

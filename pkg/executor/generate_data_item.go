@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 
 	"github.com/pingcap/parser/mysql"
@@ -48,16 +47,16 @@ func GenerateRandDataItem() interface{} {
 	case 5:
 		dataType = "datetime"
 	}
-	column := &types.Column{DataType: dataType}
-	if dataType == "varchar" {
-		column.DataLen = 100
-	}
-	return GenerateDataItem(column)
+	// column := &types.Column{DataType: dataType}
+	// if dataType == "varchar" {
+	// 	column.DataLen = 100
+	// }
+	return GenerateDataItem(dataType)
 }
 
 // GenerateDataItemString rand data with given type
-func GenerateDataItemString(column *types.Column) string {
-	d := GenerateDataItem(column)
+func GenerateDataItemString(columnType string) string {
+	d := GenerateDataItem(columnType)
 	switch c := d.(type) {
 	case string:
 		return c
@@ -74,15 +73,15 @@ func GenerateDataItemString(column *types.Column) string {
 }
 
 // GenerateDataItem rand data interface with given type
-func GenerateDataItem(column *types.Column) interface{} {
+func GenerateDataItem(columnType string) interface{} {
 	var res interface{}
 	// there will be 1/3 possibility return nil
 	//if !column.HasOption(ast.ColumnOptionNotNull) && util.RdRange(0, 3) == 0 {
 	//	return nil
 	//}
-	switch column.DataType {
+	switch columnType {
 	case "varchar":
-		res = GenerateStringItemLen(column.DataLen)
+		res = GenerateStringItemLen(10)
 	case "text":
 		res = GenerateStringItem()
 	case "int":
@@ -98,13 +97,13 @@ func GenerateDataItem(column *types.Column) interface{} {
 }
 
 // GenerateZeroDataItem gets zero data interface with given type
-func GenerateZeroDataItem(column *types.Column) interface{} {
+func GenerateZeroDataItem(columnType string) interface{} {
 	var res interface{}
 	// there will be 1/3 possibility return nil
 	//if !column.HasOption(ast.ColumnOptionNotNull) && util.RdRange(0, 3) == 0 {
 	//	return nil
 	//}
-	switch column.DataType {
+	switch columnType {
 	case "varchar":
 		res = ""
 	case "text":
@@ -122,13 +121,13 @@ func GenerateZeroDataItem(column *types.Column) interface{} {
 }
 
 // GenerateEnumDataItem gets enum data interface with given type
-func GenerateEnumDataItem(column *types.Column) interface{} {
+func GenerateEnumDataItem(columnType string) interface{} {
 	var res interface{}
 	// there will be 1/3 possibility return nil
 	//if !column.HasOption(ast.ColumnOptionNotNull) && util.RdRange(0, 3) == 0 {
 	//	return nil
 	//}
-	switch column.DataType {
+	switch columnType {
 	case "varchar":
 		res = stringEnums[util.Rd(len(stringEnums))]
 	case "text":

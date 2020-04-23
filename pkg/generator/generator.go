@@ -236,7 +236,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 }
 
 // walk on select stmt
-func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) (string, []TableColumn, error) {
+func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) (string, []types.TableColumn, error) {
 	g.walkResultSetNode(node.From.TableRefs, usedTables)
 	// if node.From.TableRefs.Right == nil && node.From.TableRefs.Left != nil {
 	// 	table = s.walkResultSetNode(node.From.TableRefs.Left)

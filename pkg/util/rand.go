@@ -8,6 +8,10 @@ import (
 	"github.com/pingcap/parser/ast"
 )
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 // Rd same to rand.Intn
 func Rd(n int) int {
 	return rand.Intn(n)

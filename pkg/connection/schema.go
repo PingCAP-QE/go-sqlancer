@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/juju/errors"
 )
 
@@ -111,20 +110,20 @@ func (c *Connection) FetchSchema(db string) ([][6]string, error) {
 }
 
 // FetchColumns get columns for given table
-func (c *Connection) FetchColumns(db, table string) ([]types.Column, error) {
-	var columns []types.Column
+func (c *Connection) FetchColumns(db, table string) ([][3]string, error) {
+	var columns [][3]string
 	res, err := c.db.Query(fmt.Sprintf(tableSQL, db, table))
 	if err != nil {
-		return []types.Column{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 	for res.Next() {
 		var columnName, columnType, nullValue, index string
 		var defaultValue, extra interface{}
 		if err = res.Scan(&columnName, &columnType, &nullValue, &index, &defaultValue, &extra); err != nil {
-			return []types.Column{}, errors.Trace(err)
+			return nil, errors.Trace(err)
 		}
 		// columns = append(columns, [3]string{columnName, columnType, nullValue})
-		columns = append(columns, types.Column{Column: columnName, DataType: columnType})
+		columns = append(columns, [3]string{columnName, columnType, nullValue})
 	}
 	return columns, nil
 }

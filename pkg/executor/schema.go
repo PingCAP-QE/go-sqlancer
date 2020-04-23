@@ -2,11 +2,10 @@ package executor
 
 import (
 	"regexp"
-	"strconv"
-	"strings"
 
 	"github.com/juju/errors"
 	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/model"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 )
@@ -25,7 +24,7 @@ func (e *Executor) reloadSchema() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	indexes := make(map[string][]string)
+	indexes := make(map[string][]model.CIStr)
 	for _, col := range schema {
 		if _, ok := indexes[col[2]]; ok {
 			continue
@@ -36,15 +35,20 @@ func (e *Executor) reloadSchema() error {
 		if err != nil {
 			return errors.Trace(err)
 		}
-		indexes[col[1]] = index
+		var modelIndex []model.CIStr
+		for _, indexName := range index {
+			modelIndex = append(modelIndex, model.NewCIStr(indexName))
+		}
+		indexes[col[1]] = modelIndex
 	}
 
 	e.loadSchema(schema, indexes)
 	return nil
 }
 
-func (e *Executor) loadSchema(records [][6]string, indexes map[string][]string) {
+func (e *Executor) loadSchema(records [][6]string, indexes map[string][]model.CIStr) {
 	// init databases
+LOOP:
 	for _, record := range records {
 		dbname := record[0]
 		if dbname != e.db {
@@ -54,38 +58,32 @@ func (e *Executor) loadSchema(records [][6]string, indexes map[string][]string) 
 		tableType := record[2]
 		columnName := record[3]
 		columnType := record[4]
+		columnNull := record[5]
 		options := make([]ast.ColumnOptionType, 0)
 		if record[5] == "NO" {
 			options = append(options, ast.ColumnOptionNotNull)
 		}
 		index, ok := indexes[tableName]
 		if !ok {
-			index = []string{}
+			index = []model.CIStr{}
 		}
 		if _, ok := e.tables[tableName]; !ok {
 			e.tables[tableName] = &types.Table{
-				DB:      dbname,
-				Table:   tableName,
-				Type:    tableType,
-				Columns: make(map[string]*types.Column),
+				Name:    model.NewCIStr(tableName),
+				Columns: [][3]string{},
 				Indexes: index,
+				Type:    tableType,
 			}
 		}
-		if _, ok := e.tables[tableName].Columns[columnName]; !ok {
-			dataLengthStr := typePattern.FindString(columnType)
-			length := 0
-			if dataLengthStr != "" {
-				length, _ = strconv.Atoi(dataLengthStr[1 : len(dataLengthStr)-1])
-			}
-			e.tables[tableName].Columns[columnName] = &types.Column{
-				DB:     dbname,
-				Table:  tableName,
-				Column: columnName,
-				// remove the data size in type definition
-				DataType: typePattern.ReplaceAllString(strings.ToLower(columnType), ""),
-				DataLen:  length,
-				Options:  options,
+
+		for index, column := range e.tables[tableName].Columns {
+			if column[0] == columnName {
+				e.tables[tableName].Columns[index][1] = columnType
+				e.tables[tableName].Columns[index][2] = columnNull
+				continue LOOP
 			}
 		}
+		e.tables[tableName].Columns = append(e.tables[tableName].Columns,
+			[3]string{columnName, columnType, columnNull})
 	}
 }
