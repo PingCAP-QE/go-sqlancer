@@ -186,7 +186,7 @@ func (p *Pivot) progress(ctx context.Context) {
 	correct := p.verify(pivotRows, columns, resultRows)
 	fmt.Printf("Round %d, verify result %v!\n", p.round, correct)
 	if !correct {
-		subSQL, err := p.simplifySelect(selStmt, pivotRows, usedTables, columns)
+		subSQL, err := p.minifySelect(selStmt, pivotRows, usedTables, columns)
 		if err != nil {
 			log.Error("occurred an error when try to simplify select", zap.String("sql", selectSQL), zap.Error(err))
 			fmt.Printf("query:\n%s\n", selectSQL)
@@ -319,31 +319,48 @@ func (p *Pivot) checkRow(originRow map[TableColumn]*connection.QueryItem, column
 	return true
 }
 
-func (p *Pivot) simplifySelect(stmt *ast.SelectStmt, pivotRows map[TableColumn]*connection.QueryItem, usedTable []Table, columns []TableColumn) (string, error) {
-	selectStmt := p.trySubSelect(stmt, stmt.Where, usedTable, pivotRows, columns)
+func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[TableColumn]*connection.QueryItem, usedTable []Table, columns []TableColumn) (string, error) {
+	selectStmt := p.minifySubquery(stmt, stmt.Where, usedTable, pivotRows, columns)
 	// for those ast that we don't try to simplify
 	if selectStmt == nil {
 		selectStmt = stmt
 	}
 	p.RectifyCondition(selectStmt, usedTable, pivotRows)
+	usedColumns := p.collectColumnNames(selectStmt.Where)
+	selectStmt.Fields.Fields = make([]*ast.SelectField, 0)
+	for _, name := range usedColumns {
+		selectField := ast.SelectField{
+			Expr: &ast.ColumnNameExpr{
+				Name: &name,
+			},
+		}
+		selectStmt.Fields.Fields = append(selectStmt.Fields.Fields, &selectField)
+	}
+	if len(selectStmt.Fields.Fields) == 0 {
+		selectStmt.Fields.Fields = append(selectStmt.Fields.Fields, &ast.SelectField{
+			Offset:   0,
+			WildCard: &ast.WildCardField{},
+		})
+	}
 	sql, err := BufferOut(selectStmt)
 	if err != nil {
 		return "", err
 	}
+
 	return sql, nil
 }
 
-func (p *Pivot) trySubSelect(stmt *ast.SelectStmt, e ast.Node, usedTable []Table, pivotRows map[TableColumn]*connection.QueryItem, columns []TableColumn) *ast.SelectStmt {
+func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Table, pivotRows map[TableColumn]*connection.QueryItem, columns []TableColumn) *ast.SelectStmt {
 	switch t := e.(type) {
 	case *ast.ParenthesesExpr:
-		result := p.trySubSelect(stmt, t.Expr, usedTable, pivotRows, columns)
+		result := p.minifySubquery(stmt, t.Expr, usedTable, pivotRows, columns)
 		return result
 	case *ast.BinaryOperationExpr:
-		subSelectStmt := p.trySubSelect(stmt, t.L, usedTable, pivotRows, columns)
+		subSelectStmt := p.minifySubquery(stmt, t.L, usedTable, pivotRows, columns)
 		if subSelectStmt != nil {
 			return subSelectStmt
 		}
-		subSelectStmt = p.trySubSelect(stmt, t.R, usedTable, pivotRows, columns)
+		subSelectStmt = p.minifySubquery(stmt, t.R, usedTable, pivotRows, columns)
 		if subSelectStmt != nil {
 			return subSelectStmt
 		}
@@ -365,7 +382,7 @@ func (p *Pivot) trySubSelect(stmt *ast.SelectStmt, e ast.Node, usedTable []Table
 		}
 		return nil
 	case *ast.UnaryOperationExpr:
-		subSelectStmt := p.trySubSelect(stmt, t.V, usedTable, pivotRows, columns)
+		subSelectStmt := p.minifySubquery(stmt, t.V, usedTable, pivotRows, columns)
 		if subSelectStmt != nil {
 			return subSelectStmt
 		}
@@ -383,6 +400,7 @@ func (p *Pivot) trySubSelect(stmt *ast.SelectStmt, e ast.Node, usedTable []Table
 			return nil
 		}
 		if !p.verifyExistence(subSelectStmt, usedTable, pivotRows, exist) {
+			// pivotRows aren't in sub query stmt, we found a invalid sub query
 			return subSelectStmt
 		}
 		return nil
