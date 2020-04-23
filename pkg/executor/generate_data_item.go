@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/types"
-	"github.com/chaos-mesh/private-wreck-it/pkg/util"
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 
 	"github.com/pingcap/parser/mysql"
 	tidbTypes "github.com/pingcap/tidb/types"

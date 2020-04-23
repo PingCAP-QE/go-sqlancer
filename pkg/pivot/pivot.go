@@ -19,8 +19,8 @@ import (
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/connection"
-	"github.com/chaos-mesh/private-wreck-it/pkg/executor"
+	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
+	"github.com/chaos-mesh/go-sqlancer/pkg/executor"
 )
 
 type Pivot struct {

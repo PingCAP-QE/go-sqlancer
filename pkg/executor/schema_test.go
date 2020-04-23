@@ -3,7 +3,7 @@ package executor
 import (
 	"testing"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/types"
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/stretchr/testify/assert"
 )
 

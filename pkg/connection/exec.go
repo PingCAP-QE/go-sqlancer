@@ -19,7 +19,7 @@ import (
 
 	"github.com/ngaut/log"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/util"
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
 // Select run select statement and return query result

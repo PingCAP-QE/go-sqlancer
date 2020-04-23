@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"time"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/util"
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 	"github.com/ngaut/log"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/format"

@@ -14,7 +14,7 @@
 package executor
 
 import (
-	"github.com/chaos-mesh/private-wreck-it/pkg/connection"
+	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
 )
 
 // GetConn get connection of first connection

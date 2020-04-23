@@ -18,8 +18,8 @@ import (
 
 	"github.com/juju/errors"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/connection"
-	"github.com/chaos-mesh/private-wreck-it/pkg/types"
+	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 )
 
 var (

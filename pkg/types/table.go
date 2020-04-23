@@ -18,7 +18,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/util"
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
 // Table defines database table

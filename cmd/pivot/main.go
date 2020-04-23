@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/pivot"
+	"github.com/chaos-mesh/go-sqlancer/pkg/pivot"
 	_ "github.com/go-sql-driver/mysql"
 )
 

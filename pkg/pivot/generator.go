@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/connection"
+	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
 
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"

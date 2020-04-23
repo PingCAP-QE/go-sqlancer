@@ -16,8 +16,8 @@ package connection
 import (
 	"github.com/juju/errors"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/logger"
-	"github.com/chaos-mesh/private-wreck-it/pkg/mysql"
+	"github.com/chaos-mesh/go-sqlancer/pkg/logger"
+	"github.com/chaos-mesh/go-sqlancer/pkg/mysql"
 )
 
 // Option struct

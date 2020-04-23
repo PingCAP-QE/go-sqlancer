@@ -4,7 +4,7 @@ import (
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/util"
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
 func createTableStmt() *ast.CreateTableStmt {

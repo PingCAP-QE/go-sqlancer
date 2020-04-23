@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/types"
-	"github.com/chaos-mesh/private-wreck-it/pkg/util"
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 	"github.com/juju/errors"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"

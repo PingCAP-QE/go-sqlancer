@@ -5,10 +5,10 @@ VERSION   := $(if $(VERSION),$(VERSION),latest)
 
 GOBUILD=$(GO) build
 
-default: pivot
+default: sqlancer
 
-pivot:
-	$(GOBUILD) $(GOMOD) -o bin/pivot cmd/pivot/*.go
+sqlancer:
+	$(GOBUILD) $(GOMOD) -o bin/go-sqlancer cmd/pivot/*.go
 
 fmt:
 	go fmt ./...

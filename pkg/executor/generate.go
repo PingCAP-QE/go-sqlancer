@@ -3,7 +3,7 @@ package executor
 import (
 	"github.com/juju/errors"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/types"
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
 )

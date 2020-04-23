@@ -1,9 +1,8 @@
-module github.com/chaos-mesh/private-wreck-it
+module github.com/chaos-mesh/go-sqlancer
 
 go 1.13
 
 require (
-	github.com/cznic/mathutil v0.0.0-20181122101859-297441e03548
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/juju/errors v0.0.0-20190930114154-d42613fe1ab9
 	github.com/juju/loggo v0.0.0-20190526231331-6e530bcce5d8 // indirect
