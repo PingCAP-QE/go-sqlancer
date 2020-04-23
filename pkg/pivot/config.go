@@ -7,3 +7,8 @@ type Config struct {
 	PrepareStmt bool
 	Hint        bool
 }
+
+// default config
+func NewConfig() *Config {
+	return &Config{}
+}

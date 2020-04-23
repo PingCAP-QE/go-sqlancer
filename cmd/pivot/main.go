@@ -11,18 +11,18 @@ import (
 )
 
 var (
-	dsn string
+	cfg = pivot.NewConfig()
+	dsn = flag.String("d", "", "dsn of target db for testing")
 )
 
 func main() {
 	// p.Start(context.Background())
-	flag.StringVar(&dsn, "d", "", "dsn of target db for testing")
-	flag.Parse()
-	if dsn == "" {
+	// flag.StringVar(&dsn, "d", "", "dsn of target db for testing")
+	if *dsn == "" {
 		panic("no dsn in arguments")
 	}
 
-	p, err := pivot.NewPivot(dsn, "test")
+	p, err := pivot.NewPivot(*dsn, "test")
 	if err != nil {
 		panic(fmt.Sprintf("new pivot failed, error: %+v\n", err))
 	}
@@ -39,5 +39,9 @@ func main() {
 		default:
 		}
 	}
+}
 
+func init() {
+
+	flag.Parse()
 }
