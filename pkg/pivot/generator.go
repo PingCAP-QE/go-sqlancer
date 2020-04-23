@@ -277,38 +277,38 @@ func (g *Generator) selectStmt(node *ast.SelectStmt, usedTables []Table, pivotRo
 	return sql, columnInfos, err
 }
 
-func EvaluateRow(e ast.Node, usedTables []Table, pivotRows map[TableColumn]interface{}) parser_driver.ValueExpr {
+func evaluateRow(e ast.Node, usedTables []Table, pivotRows map[TableColumn]interface{}) parser_driver.ValueExpr {
 	switch t := e.(type) {
 	case *ast.ParenthesesExpr:
-		return EvaluateRow(t.Expr, usedTables, pivotRows)
+		return evaluateRow(t.Expr, usedTables, pivotRows)
 	case *ast.BinaryOperationExpr:
 		switch t.Op {
 		case opcode.LogicXor:
-			r, _ := LogicXor.Eval(EvaluateRow(t.L, usedTables, pivotRows), EvaluateRow(t.R, usedTables, pivotRows))
+			r, _ := LogicXor.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
 			return r
 		case opcode.LogicAnd:
-			r, _ := LogicAnd.Eval(EvaluateRow(t.L, usedTables, pivotRows), EvaluateRow(t.R, usedTables, pivotRows))
+			r, _ := LogicAnd.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
 			return r
 		case opcode.LogicOr:
-			r, _ := LogicOr.Eval(EvaluateRow(t.L, usedTables, pivotRows), EvaluateRow(t.R, usedTables, pivotRows))
+			r, _ := LogicOr.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
 			return r
 		case opcode.GT:
-			r, _ := Gt.Eval(EvaluateRow(t.L, usedTables, pivotRows), EvaluateRow(t.R, usedTables, pivotRows))
+			r, _ := Gt.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
 			return r
 		case opcode.GE:
-			r, _ := Ge.Eval(EvaluateRow(t.L, usedTables, pivotRows), EvaluateRow(t.R, usedTables, pivotRows))
+			r, _ := Ge.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
 			return r
 		case opcode.LT:
-			r, _ := Lt.Eval(EvaluateRow(t.L, usedTables, pivotRows), EvaluateRow(t.R, usedTables, pivotRows))
+			r, _ := Lt.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
 			return r
 		case opcode.LE:
-			r, _ := Le.Eval(EvaluateRow(t.L, usedTables, pivotRows), EvaluateRow(t.R, usedTables, pivotRows))
+			r, _ := Le.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
 			return r
 		case opcode.NE:
-			r, _ := Ne.Eval(EvaluateRow(t.L, usedTables, pivotRows), EvaluateRow(t.R, usedTables, pivotRows))
+			r, _ := Ne.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
 			return r
 		case opcode.EQ:
-			r, _ := Eq.Eval(EvaluateRow(t.L, usedTables, pivotRows), EvaluateRow(t.R, usedTables, pivotRows))
+			r, _ := Eq.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
 			return r
 		default:
 			panic(fmt.Sprintf("no op implements %s %d", t.Op.String(), t.Op))
@@ -316,9 +316,18 @@ func EvaluateRow(e ast.Node, usedTables []Table, pivotRows map[TableColumn]inter
 	case *ast.UnaryOperationExpr:
 		switch t.Op {
 		case opcode.Not:
-			r, _ := Not.Eval(EvaluateRow(t.V, usedTables, pivotRows))
+			r, _ := Not.Eval(evaluateRow(t.V, usedTables, pivotRows))
 			return r
 		}
+	case *ast.IsNullExpr:
+		subResult := evaluateRow(t.Expr, usedTables, pivotRows)
+		c := ConvertToBoolOrNull(subResult)
+		r := parser_driver.ValueExpr{}
+		r.SetInt64(0)
+		if c == -1 {
+			r.SetInt64(1)
+		}
+		return r
 	case *ast.ColumnNameExpr:
 		for key, value := range pivotRows {
 			if key.Table+"."+key.Name == t.Name.OrigColName() {
@@ -352,7 +361,7 @@ func Evaluate(whereClause ast.Node, usedTables []Table, pivotRows map[TableColum
 	for key, value := range pivotRows {
 		row[key], _ = getTypedValue(value)
 	}
-	return EvaluateRow(whereClause, usedTables, row)
+	return evaluateRow(whereClause, usedTables, row)
 }
 
 func trueValueExpr() parser_driver.ValueExpr {

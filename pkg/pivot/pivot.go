@@ -200,7 +200,8 @@ func (p *Pivot) progress(ctx context.Context) {
 		for column, value := range pivotRows {
 			fmt.Printf("%s.%s:%v\n", column.Table, column.Name, value.ValString)
 		}
-		panic("data verified failed")
+		return
+		//panic("data verified failed")
 	}
 	if p.round <= p.Conf.ViewCount {
 		if err := p.Executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.round), selectSQL, len(resultRows)); err != nil {
@@ -363,7 +364,26 @@ func (p *Pivot) trySubSelect(stmt *ast.SelectStmt, e ast.Node, usedTable []Table
 		return nil
 	case *ast.UnaryOperationExpr:
 		subSelectStmt := p.trySubSelect(stmt, t.V, usedTable, pivotRows, columns)
-		return subSelectStmt
+		if subSelectStmt != nil {
+			return subSelectStmt
+		}
+		subSelectStmt = &ast.SelectStmt{
+			SelectStmtOpts: &ast.SelectStmtOpts{
+				SQLCache: true,
+			},
+			From:   stmt.From,
+			Fields: stmt.Fields,
+			Where:  t,
+		}
+		exist, err := p.ExecAndVerify(subSelectStmt, pivotRows, columns)
+		if err != nil {
+			log.L().Error("occurred an error", zap.Error(err))
+			return nil
+		}
+		if !p.verifyExistence(subSelectStmt, usedTable, pivotRows, exist) {
+			return subSelectStmt
+		}
+		return nil
 	default:
 		return nil
 	}
