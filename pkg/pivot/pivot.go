@@ -189,7 +189,6 @@ func (p *Pivot) progress(ctx context.Context) {
 		}
 		panic("data verified failed")
 	}
-	fmt.Printf("run one statment [%s] successfully!\n", selectStmt)
 	// log.Info("run one statement successfully!", zap.String("query", selectStmt))
 }
 
@@ -203,7 +202,6 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 			count = Rd(4) + 1
 		}
 	}
-	fmt.Printf("#####count :%d", count)
 	rand.Shuffle(len(p.Tables), func(i, j int) { p.Tables[i], p.Tables[j] = p.Tables[j], p.Tables[i] })
 	usedTables := p.Tables[:count]
 	var reallyUsed []Table
@@ -224,7 +222,6 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 
 		}
 	}
-	fmt.Printf("####used %+v", reallyUsed)
 	return result, reallyUsed, nil
 }
 
@@ -251,7 +248,6 @@ func (p *Pivot) ExecAndVerify(stmt string, originRow map[TableColumn]*connection
 
 // may not return string
 func (p *Pivot) execSelect(stmt string) ([][]*connection.QueryItem, error) {
-	fmt.Printf("exec: %s", stmt)
 	return p.Executor.GetConn().Select(stmt)
 }
 

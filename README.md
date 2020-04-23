@@ -8,7 +8,7 @@ bin/pivot -d "root@tcp(127.0.0.1:4000)/"
 
 ## Support Method
 
-- [ ] Expression
+- Expression
   - [x] XOR
   - [x] AND
   - [x] OR
@@ -19,15 +19,11 @@ bin/pivot -d "root@tcp(127.0.0.1:4000)/"
   - [x] EQ
   - [x] GE
   - [x] LE
-
-- [ ] Statment
-  - [x] SELECT
-  - [x] WHERE
-  
 - [ ] View
-- [ ] Partition
+- [ ] Table partition
 
 ## Issues
+
 - https://github.com/pingcap/tidb/issues/16716
 - https://github.com/pingcap/tidb/issues/16679
 - https://github.com/pingcap/tidb/issues/16599
