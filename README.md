@@ -2,7 +2,7 @@ Inspired by Manuel Rigger's paper [Testing Database Engines via Pivoted Query Sy
 
 ## How to run
 ```
-make pivot
+make
 bin/pivot -dsn "root:@tcp(127.0.0.1:4000)/"
 ```
 
