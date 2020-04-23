@@ -8,14 +8,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chaos-mesh/private-wreck-it/pkg/connection"
-	"github.com/chaos-mesh/private-wreck-it/pkg/executor"
-	"github.com/juju/errors"
-	"github.com/pingcap/log"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/juju/errors"
+	"github.com/pingcap/log"
+	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
+	"github.com/pingcap/tidb/sessionctx/stmtctx"
+	tidb_types "github.com/pingcap/tidb/types"
+	parser_driver "github.com/pingcap/tidb/types/parser_driver"
+
+	"github.com/chaos-mesh/private-wreck-it/pkg/connection"
+	"github.com/chaos-mesh/private-wreck-it/pkg/executor"
 )
 
 type Pivot struct {
@@ -167,29 +172,38 @@ func (p *Pivot) progress(ctx context.Context) {
 	}
 	// generate sql ast tree and
 	// generate sql where clause
-	selectStmt, columns, err := p.GenSelectStmt(pivotRows, usedTables)
+	selStmt, selectSQL, columns, err := p.GenSelectStmt(pivotRows, usedTables)
 	if err != nil {
 		panic(err)
 	}
 	// execute sql, ensure not null result set
-	resultRows, err := p.execSelect(selectStmt)
+	resultRows, err := p.execSelect(selectSQL)
 	if err != nil {
 		log.L().Error("execSelect failed", zap.Error(err))
 		return
 	}
 	// verify pivot row in result row set
 	correct := p.verify(pivotRows, columns, resultRows)
+	fmt.Printf("Round %d, verify result %v!\n", p.round, correct)
 	if !correct {
-		fmt.Printf("query:\n%s\n", selectStmt)
+		subSQL, err := p.simplifySelect(selStmt, pivotRows, usedTables, columns)
+		if err != nil {
+			log.Error("occurred an error when try to simplify select", zap.String("sql", selectSQL), zap.Error(err))
+			fmt.Printf("query:\n%s\n", selectSQL)
+		} else {
+			fmt.Printf("query:\n%s\n", selectSQL)
+			if len(subSQL) < len(selectSQL) {
+				fmt.Printf("sub query:\n%s\n", subSQL)
+			}
+		}
 		fmt.Printf("row:\n")
 		for column, value := range pivotRows {
 			fmt.Printf("%s.%s:%v\n", column.Table, column.Name, value.ValString)
 		}
 		panic("data verified failed")
 	}
-	fmt.Printf("run one statment [%s] successfully!\n", selectStmt)
 	if p.round <= p.Conf.ViewCount {
-		if err := p.Executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.round), selectStmt, len(resultRows)); err != nil {
+		if err := p.Executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.round), selectSQL, len(resultRows)); err != nil {
 			fmt.Println("create view failed")
 			panic(err)
 		}
@@ -236,20 +250,24 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 	return result, reallyUsed, nil
 }
 
-func (p *Pivot) GenSelectStmt(pivotRows map[TableColumn]*connection.QueryItem, usedTables []Table) (string, []TableColumn, error) {
-	stmtAst, err := p.selectStmtAst(1, usedTables)
+func (p *Pivot) GenSelectStmt(pivotRows map[TableColumn]*connection.QueryItem, usedTables []Table) (*ast.SelectStmt, string, []TableColumn, error) {
+	stmtAst, err := p.selectStmtAst(p.Conf.Depth, usedTables)
 	if err != nil {
-		return "", nil, err
+		return nil, "", nil, err
 	}
 	sql, columns, err := p.selectStmt(&stmtAst, usedTables, pivotRows)
 	if err != nil {
-		return "", nil, err
+		return nil, "", nil, err
 	}
-	return sql, columns, nil
+	return &stmtAst, sql, columns, nil
 }
 
-func (p *Pivot) ExecAndVerify(stmt string, originRow map[TableColumn]*connection.QueryItem, columns []TableColumn) (bool, error) {
-	resultSets, err := p.execSelect(stmt)
+func (p *Pivot) ExecAndVerify(stmt *ast.SelectStmt, originRow map[TableColumn]*connection.QueryItem, columns []TableColumn) (bool, error) {
+	sql, err := BufferOut(stmt)
+	if err != nil {
+		return false, err
+	}
+	resultSets, err := p.execSelect(sql)
 	if err != nil {
 		return false, err
 	}
@@ -265,19 +283,18 @@ func (p *Pivot) execSelect(stmt string) ([][]*connection.QueryItem, error) {
 func (p *Pivot) verify(originRow map[TableColumn]*connection.QueryItem, columns []TableColumn, resultSets [][]*connection.QueryItem) bool {
 	for _, row := range resultSets {
 		if p.checkRow(originRow, columns, row) {
-			fmt.Printf("Round %d, verify pass! \n", p.round)
 			return true
 		}
 	}
-	fmt.Println("=========  ORIGIN ROWS ======")
-	for k, v := range originRow {
-		fmt.Printf("key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
-	}
-
-	fmt.Println("=========  COLUMNS ======")
-	for _, c := range columns {
-		fmt.Printf("Table: %s, Name: %s\n", c.Table, c.Name)
-	}
+	//fmt.Println("=========  ORIGIN ROWS ======")
+	//for k, v := range originRow {
+	//	fmt.Printf("key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
+	//}
+	//
+	//fmt.Println("=========  COLUMNS ======")
+	//for _, c := range columns {
+	//	fmt.Printf("Table: %s, Name: %s\n", c.Table, c.Name)
+	//}
 	// fmt.Printf("=========  DATA ======, count: %d\n", len(resultSets))
 	// for i, r := range resultSets {
 	// 	fmt.Printf("$$$$$$$$$ line %d\n", i)
@@ -286,7 +303,6 @@ func (p *Pivot) verify(originRow map[TableColumn]*connection.QueryItem, columns 
 	// 	}
 	// }
 
-	fmt.Printf("Round %d, verify failed! \n", p.round)
 	return false
 }
 
@@ -298,6 +314,78 @@ func (p *Pivot) checkRow(originRow map[TableColumn]*connection.QueryItem, column
 		}
 	}
 	return true
+}
+
+func (p *Pivot) simplifySelect(stmt *ast.SelectStmt, pivotRows map[TableColumn]*connection.QueryItem, usedTable []Table, columns []TableColumn) (string, error) {
+	selectStmt := p.trySubSelect(stmt, stmt.Where, usedTable, pivotRows, columns)
+	// for those ast that we don't try to simplify
+	if selectStmt == nil {
+		selectStmt = stmt
+	}
+	p.RectifyCondition(selectStmt, usedTable, pivotRows)
+	sql, err := BufferOut(selectStmt)
+	if err != nil {
+		return "", err
+	}
+	return sql, nil
+}
+
+func (p *Pivot) trySubSelect(stmt *ast.SelectStmt, e ast.Node, usedTable []Table, pivotRows map[TableColumn]*connection.QueryItem, columns []TableColumn) *ast.SelectStmt {
+	switch t := e.(type) {
+	case *ast.ParenthesesExpr:
+		result := p.trySubSelect(stmt, t.Expr, usedTable, pivotRows, columns)
+		return result
+	case *ast.BinaryOperationExpr:
+		subSelectStmt := p.trySubSelect(stmt, t.L, usedTable, pivotRows, columns)
+		if subSelectStmt != nil {
+			return subSelectStmt
+		}
+		subSelectStmt = p.trySubSelect(stmt, t.R, usedTable, pivotRows, columns)
+		if subSelectStmt != nil {
+			return subSelectStmt
+		}
+		subSelectStmt = &ast.SelectStmt{
+			SelectStmtOpts: &ast.SelectStmtOpts{
+				SQLCache: true,
+			},
+			From:   stmt.From,
+			Fields: stmt.Fields,
+			Where:  t,
+		}
+		exist, err := p.ExecAndVerify(subSelectStmt, pivotRows, columns)
+		if err != nil {
+			log.L().Error("occurred an error", zap.Error(err))
+			return nil
+		}
+		if !p.verifyExistence(subSelectStmt, usedTable, pivotRows, exist) {
+			return subSelectStmt
+		}
+		return nil
+	case *ast.UnaryOperationExpr:
+		subSelectStmt := p.trySubSelect(stmt, t.V, usedTable, pivotRows, columns)
+		return subSelectStmt
+	default:
+		return nil
+	}
+}
+
+func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[TableColumn]*connection.QueryItem, exist bool) bool {
+	where := sel.Where
+	out := Evaluate(where, usedTables, pivotRows)
+
+	switch out.Kind() {
+	case tidb_types.KindNull:
+		return exist == false
+	default:
+		// make it true
+		zero := parser_driver.ValueExpr{}
+		zero.SetInt64(0)
+		res, _ := out.CompareDatum(&stmtctx.StatementContext{AllowInvalidDate: true, IgnoreTruncate: true}, &zero.Datum)
+		if res == 0 {
+			return exist == false
+		}
+		return exist
+	}
 }
 
 func compareQueryItem(left *connection.QueryItem, right *connection.QueryItem) bool {

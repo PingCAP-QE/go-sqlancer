@@ -14,6 +14,7 @@ var (
 type Config struct {
 	DSN    string
 	DBName string
+	Depth  int
 
 	ViewCount int
 	// TODO implement them
@@ -27,6 +28,7 @@ func NewConfig() *Config {
 		DSN:         "",
 		PrepareStmt: false,
 		Hint:        false,
+		Depth:       1,
 		ViewCount:   10,
 	}
 }

@@ -271,7 +271,7 @@ func (g *Generator) selectStmt(node *ast.SelectStmt, usedTables []Table, pivotRo
 	// }
 	columnInfos := g.walkResultFields(node, usedTables)
 	// s.walkOrderByClause(node.OrderBy, table)
-	g.walkWhereClause(node, usedTables, pivotRows)
+	g.RectifyCondition(node, usedTables, pivotRows)
 	// s.walkExprNode(node.Where, table, nil)
 	sql, err := BufferOut(node)
 	return sql, columnInfos, err
@@ -385,7 +385,7 @@ func getTypedValue(it *connection.QueryItem) (interface{}, byte) {
 	}
 }
 
-func (g *Generator) walkWhereClause(node *ast.SelectStmt, usedTables []Table, pivotRows map[TableColumn]*connection.QueryItem) {
+func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []Table, pivotRows map[TableColumn]*connection.QueryItem) {
 	out := Evaluate(node.Where, usedTables, pivotRows)
 	pthese := ast.ParenthesesExpr{}
 	pthese.Expr = node.Where

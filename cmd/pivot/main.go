@@ -14,6 +14,7 @@ const (
 	nmDSN       = "dsn"
 	nmViewCount = "view"
 	nmDuration  = "duration"
+	sqlDepth    = "depth"
 )
 
 var (
@@ -21,16 +22,11 @@ var (
 	dsn       = flag.String(nmDSN, "", "dsn of target db for testing")
 	viewCount = flag.Int(nmViewCount, 10, "count of views to be created")
 	duration  = flag.Duration(nmDuration, 5*time.Minute, "fuzz duration")
+	depth     = flag.Int(sqlDepth, 1, "sql depth")
 )
 
 func main() {
-	flag.Parse()
 	loadConfig()
-
-	if *dsn == "" {
-		panic("no dsn in arguments")
-	}
-
 	p, err := pivot.NewPivot(conf)
 	if err != nil {
 		panic(fmt.Sprintf("new pivot failed, error: %+v\n", err))
@@ -47,6 +43,8 @@ func main() {
 }
 
 func loadConfig() {
+	flag.Parse()
+
 	actualFlags := make(map[string]bool)
 	flag.Visit(func(f *flag.Flag) {
 		actualFlags[f.Name] = true
@@ -59,10 +57,10 @@ func loadConfig() {
 	} else {
 		panic("empty dsn")
 	}
-
 	if actualFlags[nmViewCount] {
 		conf.ViewCount = *viewCount
 	}
-
-	flag.Parse()
+	if actualFlags[sqlDepth] {
+		conf.Depth = *depth
+	}
 }
