@@ -95,5 +95,5 @@ func init() {
 	}
 
 	UnaryOps.Add(Not)
-	LogicOps.Add(Not)
+	// LogicOps.Add(Not)
 }
