@@ -89,7 +89,11 @@ var (
 )
 
 func init() {
-	for _, f := range []*types.Op{LogicXor, LogicAnd, LogicOr} {
+	for _, f := range []*types.Op{
+		// LogicXor,
+		LogicAnd,
+		LogicOr,
+	} {
 		BinaryOps.Add(f)
 		LogicOps.Add(f)
 	}

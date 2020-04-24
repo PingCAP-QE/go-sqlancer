@@ -97,13 +97,13 @@ func dataType2Len(t string) int {
 	case "int":
 		return 16
 	case "varchar":
-		return 1023
+		return 511
 	case "timestamp":
 		return 255
 	case "datetime":
 		return 255
 	case "text":
-		return 1023
+		return 511
 	case "float":
 		return 64
 	}

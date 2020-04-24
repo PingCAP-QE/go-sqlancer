@@ -15,6 +15,7 @@ package executor
 
 import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
+	"github.com/juju/errors"
 )
 
 // GetConn get connection of first connection
@@ -35,7 +36,7 @@ func (e *Executor) Close() error {
 // Exec function for quick executor some SQLs
 func (e *Executor) Exec(sql string) error {
 	if err := e.conn.Exec(sql); err != nil {
-		return err
+		return errors.Errorf("sql: %s, err: %+v", sql, err)
 	}
 	return e.conn.Commit()
 }

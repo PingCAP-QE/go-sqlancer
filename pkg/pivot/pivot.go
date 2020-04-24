@@ -68,9 +68,7 @@ func (p *Pivot) Start(ctx context.Context) {
 // Close Pivot
 func (p *Pivot) Close() {
 	p.wg.Wait()
-	p.cleanup(context.Background())
 	p.Executor.Close()
-
 }
 
 // LoadSchema load table/view/index schema
@@ -122,8 +120,10 @@ func (p *Pivot) prepare(ctx context.Context) {
 		log.Error("reload data failed!")
 	}
 	for i := 0; i < r.Intn(10); i++ {
-		sql, _ := p.Executor.GenerateDDLCreateIndex()
-		fmt.Println(sql)
+		sql, err := p.Executor.GenerateDDLCreateIndex()
+		if err != nil {
+			fmt.Println(err)
+		}
 		err = p.Executor.Exec(sql.SQLStmt)
 		if err != nil {
 			log.L().Error("create index failed", zap.String("sql", sql.SQLStmt), zap.Error(err))
@@ -212,7 +212,7 @@ func (p *Pivot) progress(ctx context.Context) {
 		panic("data verified failed")
 	}
 	if p.round <= p.Conf.ViewCount {
-		if err := p.Executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.round), selectSQL, len(resultRows)); err != nil {
+		if err := p.Executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.round), selectSQL, len(resultRows), columns); err != nil {
 			fmt.Println("create view failed")
 			panic(err)
 		}

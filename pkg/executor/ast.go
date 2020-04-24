@@ -16,7 +16,9 @@ func createTableStmt() *ast.CreateTableStmt {
 	}
 	// TODO: config for enable partition
 	// partitionStmt is disabled
-	// createTableNode.Partition = s.partitionStmt()
+	if util.Rd(2) == 0 {
+		createTableNode.Partition = partitionStmt()
+	}
 
 	return &createTableNode
 }
@@ -51,4 +53,13 @@ func insertStmt() *ast.InsertStmt {
 		Columns: []*ast.ColumnName{},
 	}
 	return &insertStmtNode
+}
+
+func partitionStmt() *ast.PartitionOptions {
+	return &ast.PartitionOptions{
+		PartitionMethod: ast.PartitionMethod{
+			ColumnNames: []*ast.ColumnName{},
+		},
+		Definitions: []*ast.PartitionDefinition{},
+	}
 }

@@ -24,7 +24,10 @@ const (
 	indexColumnName = "Key_name"
 )
 
-var binlogSyncTablePattern = regexp.MustCompile(`^t[0-9]+$`)
+var (
+	binlogSyncTablePattern = regexp.MustCompile(`^t[0-9]+$`)
+	columnTypePattern      = regexp.MustCompile(`^([a-z]+)\(?\d*?\)?$`)
+)
 
 // FetchDatabases database list
 func (c *Connection) FetchDatabases() ([]string, error) {
@@ -122,6 +125,8 @@ func (c *Connection) FetchColumns(db, table string) ([][3]string, error) {
 		if err = res.Scan(&columnName, &columnType, &nullValue, &index, &defaultValue, &extra); err != nil {
 			return nil, errors.Trace(err)
 		}
+
+		columnType = columnTypePattern.FindStringSubmatch(columnType)[1]
 		// columns = append(columns, [3]string{columnName, columnType, nullValue})
 		columns = append(columns, [3]string{columnName, columnType, nullValue})
 	}
