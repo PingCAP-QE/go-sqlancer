@@ -68,43 +68,24 @@ func (g *Generator) makeBinaryOp(e *ast.ParenthesesExpr, depth int, usedTables [
 	node := ast.BinaryOperationExpr{}
 	e.Expr = &node
 	if depth > 0 {
-		r := Rd(3)
-		switch r {
-		case 0:
-			node.Op = opcode.LogicXor
-			node.L = g.whereClauseAst(depth-1, usedTables)
-			node.R = g.whereClauseAst(Rd(depth), usedTables)
-		case 1:
-			node.Op = opcode.LogicOr
-			node.L = g.whereClauseAst(depth-1, usedTables)
-			node.R = g.whereClauseAst(Rd(depth), usedTables)
-		default:
-			node.Op = opcode.LogicAnd
-			node.L = g.whereClauseAst(depth-1, usedTables)
-			node.R = g.whereClauseAst(Rd(depth), usedTables)
+		// f := operator.LogicOps[Rd(len(operator.LogicOps))]
+		f := operator.LogicOps.Rand()
+		switch t := f.(type) {
+		case *types.Op:
+			node.Op = t.GetOpcode()
+		case *types.Fn:
+			panic("not implement binary functions")
 		}
+		node.L = g.whereClauseAst(depth-1, usedTables)
+		node.R = g.whereClauseAst(Rd(depth), usedTables)
 	} else {
-		switch Rd(9) {
-		case 0:
-			node.Op = opcode.GT
-		case 1:
-			node.Op = opcode.LT
-		case 2:
-			node.Op = opcode.NE
-		case 3:
-			node.Op = opcode.LE
-		case 4:
-			node.Op = opcode.GE
-		case 5:
-			node.Op = opcode.EQ
-		case 6:
-			node.Op = opcode.LogicXor
-		case 7:
-			node.Op = opcode.LogicOr
-		default:
-			node.Op = opcode.LogicAnd
+		f := operator.BinaryOps.Rand()
+		switch t := f.(type) {
+		case *types.Op:
+			node.Op = t.GetOpcode()
+		case *types.Fn:
+			panic("not implement binary functions")
 		}
-		f := operator.BinaryOps.Find(opcode.Ops[node.Op])
 		argType := 0
 		if Rd(3) > 0 {
 			node.L = g.columnExpr(usedTables, types.AnyArg)

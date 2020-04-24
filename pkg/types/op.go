@@ -5,6 +5,7 @@ import (
 
 	"github.com/pingcap/parser/opcode"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 // TODO: can it copy from tidb/types?
@@ -64,6 +65,18 @@ func (idx *OpFuncIndex) Add(o OpFuncEval) {
 
 func (idx *OpFuncIndex) Find(name string) OpFuncEval {
 	return (*idx)[name]
+}
+
+func (idx *OpFuncIndex) Rand() OpFuncEval {
+	rd := rand.Intn(len(*idx))
+	var f OpFuncEval
+	for _, f = range *idx {
+		if rd <= 0 {
+			return f
+		}
+		rd--
+	}
+	return f
 }
 
 type BaseOpFunc struct {
