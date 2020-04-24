@@ -20,7 +20,7 @@ bin/go-sqlancer -dsn "root:@tcp(127.0.0.1:4000)/"
   - [x] GE
   - [x] LE
 - [x] View
-- [ ] Table partition
+- [x] Table partition
 
 ## Issues
 
