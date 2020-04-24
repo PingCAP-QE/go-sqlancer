@@ -67,8 +67,8 @@ func (p *Pivot) Close() {
 
 }
 
-// Init Pivot
-func (p *Pivot) Init(ctx context.Context) {
+// LoadSchema load table/view/index schema
+func (p *Pivot) LoadSchema(ctx context.Context) {
 	rand.Seed(time.Now().UnixNano())
 	p.Tables = make([]Table, 0)
 
@@ -145,7 +145,7 @@ func (p *Pivot) cleanup(ctx context.Context) {
 func (p *Pivot) kickup(ctx context.Context) {
 	p.wg.Add(1)
 	p.prepare(ctx)
-	p.Init(ctx)
+	p.LoadSchema(ctx)
 
 	go func() {
 		defer p.wg.Done()
@@ -212,6 +212,7 @@ func (p *Pivot) progress(ctx context.Context) {
 		}
 	}
 	if p.round == p.Conf.ViewCount {
+		p.LoadSchema(ctx)
 		if err := p.Executor.ReloadSchema(); err != nil {
 			panic(err)
 		}
