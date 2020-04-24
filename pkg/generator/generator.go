@@ -262,18 +262,18 @@ func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, p
 	return sql, columnInfos, err
 }
 
-func EvaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.TableColumn]interface{}) parser_driver.ValueExpr {
+func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.TableColumn]interface{}) parser_driver.ValueExpr {
 	switch t := e.(type) {
 	case *ast.ParenthesesExpr:
 		return evaluateRow(t.Expr, usedTables, pivotRows)
 	case *ast.BinaryOperationExpr:
-		res, err := operator.BinaryOps.Eval(opcode.Ops[t.Op], EvaluateRow(t.L, usedTables, pivotRows), EvaluateRow(t.R, usedTables, pivotRows))
+		res, err := operator.BinaryOps.Eval(opcode.Ops[t.Op], evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
 		if err != nil {
 			panic(fmt.Sprintf("error occurred on eval: %+v", err))
 		}
 		return res
 	case *ast.UnaryOperationExpr:
-		res, err := operator.UnaryOps.Eval(opcode.Ops[t.Op], EvaluateRow(t.V, usedTables, pivotRows))
+		res, err := operator.UnaryOps.Eval(opcode.Ops[t.Op], evaluateRow(t.V, usedTables, pivotRows))
 		if err != nil {
 			panic(fmt.Sprintf("error occurred on eval: %+v", err))
 		}
@@ -426,7 +426,7 @@ func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) 
 	}
 }
 
-func (g *Generator) collectColumnNames(node ast.Node) []ast.ColumnName {
+func (g *Generator) CollectColumnNames(node ast.Node) []ast.ColumnName {
 	collector := columnNameVisitor{
 		Columns: make(map[string]ast.ColumnName),
 	}

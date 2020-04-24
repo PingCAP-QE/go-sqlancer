@@ -331,7 +331,7 @@ func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[TableColumn]*co
 		selectStmt = stmt
 	}
 	p.RectifyCondition(selectStmt, usedTable, pivotRows)
-	usedColumns := p.collectColumnNames(selectStmt.Where)
+	usedColumns := p.CollectColumnNames(selectStmt.Where)
 	selectStmt.Fields.Fields = make([]*ast.SelectField, 0)
 	for _, name := range usedColumns {
 		selectField := ast.SelectField{

@@ -15,11 +15,8 @@ type Config struct {
 	DSN    string
 	DBName string
 	Depth  int
-<<<<<<< HEAD
 	Silent bool
-=======
 	Debug  bool
->>>>>>> add DEBUG flag
 
 	ViewCount int
 	// TODO implement them
@@ -34,11 +31,8 @@ func NewConfig() *Config {
 		PrepareStmt: false,
 		Hint:        false,
 		Depth:       1,
-<<<<<<< HEAD
 		Silent:      false,
-=======
 		Debug:       false,
->>>>>>> add DEBUG flag
 		ViewCount:   10,
 	}
 }
