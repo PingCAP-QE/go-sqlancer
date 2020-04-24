@@ -17,7 +17,6 @@ require (
 	go.uber.org/zap v1.14.0
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
-	k8s.io/apimachinery v0.18.2
 )
 
 replace github.com/pingcap/tidb => github.com/pingcap/tidb v0.0.0-20200317142013-5268094afe05
