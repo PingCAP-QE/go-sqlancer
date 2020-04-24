@@ -287,6 +287,9 @@ func (p *Pivot) ExecAndVerify(stmt *ast.SelectStmt, originRow map[TableColumn]*c
 
 // may not return string
 func (p *Pivot) execSelect(stmt string) ([][]*connection.QueryItem, error) {
+	if p.Conf.Debug {
+		fmt.Println("[DEBUG] SQL exec: " + stmt)
+	}
 	return p.Executor.GetConn().Select(stmt)
 }
 
@@ -296,23 +299,18 @@ func (p *Pivot) verify(originRow map[TableColumn]*connection.QueryItem, columns 
 			return true
 		}
 	}
-	//fmt.Println("=========  ORIGIN ROWS ======")
-	//for k, v := range originRow {
-	//	fmt.Printf("key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
-	//}
-	//
-	//fmt.Println("=========  COLUMNS ======")
-	//for _, c := range columns {
-	//	fmt.Printf("Table: %s, Name: %s\n", c.Table, c.Name)
-	//}
-	// fmt.Printf("=========  DATA ======, count: %d\n", len(resultSets))
-	// for i, r := range resultSets {
-	// 	fmt.Printf("$$$$$$$$$ line %d\n", i)
-	// 	for j, c := range r {
-	// 		fmt.Printf("  table: %s, field: %s, field: %s, value: %s\n", columns[j].Table, columns[j].Name, c.ValType.Name(), c.ValString)
-	// 	}
-	// }
+	if p.Conf.Debug {
+		fmt.Println("[DEBUG]")
+		fmt.Println("  =========  ORIGIN ROWS ======")
+		for k, v := range originRow {
+			fmt.Printf("  key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
+		}
 
+		fmt.Println("  =========  COLUMNS ======")
+		for _, c := range columns {
+			fmt.Printf("  Table: %s, Name: %s\n", c.Table, c.Name)
+		}
+	}
 	return false
 }
 
