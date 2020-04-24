@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	dsnPattern = regexp.MustCompile(`^(\w*?)\:(\w*?)\@tcp\((\S*?)\:(\d*?)\)\/(.*?)$`)
+	dsnPattern = regexp.MustCompile(`^(\w*?)\:?(\w*?)\@tcp\((\S*?)\:(\d*?)\)\/(.*?)$`)
 )
 
 // Config struct
@@ -16,6 +16,7 @@ type Config struct {
 	DBName string
 	Depth  int
 	Silent bool
+	Debug  bool
 
 	ViewCount int
 	// TODO implement them
@@ -31,6 +32,7 @@ func NewConfig() *Config {
 		Hint:        false,
 		Depth:       1,
 		Silent:      false,
+		Debug:       false,
 		ViewCount:   10,
 	}
 }

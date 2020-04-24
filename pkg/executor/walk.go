@@ -48,19 +48,20 @@ func (e *Executor) walkDDLCreateIndex(node *ast.CreateIndexStmt) (string, error)
 	if table == nil {
 		return "", errors.New("no table available")
 	}
-	node.Table.Name = model.NewCIStr(table.Table)
+	node.Table.Name = table.Name
 	node.IndexName = util.RdStringChar(5)
 	for _, column := range table.Columns {
-		name := column.Column
-		if column.DataType == "text" {
+		name := column[0]
+		if column[1] == "text" {
 			length := util.Rd(31) + 1
 			name = fmt.Sprintf("%s(%d)", name, length)
-		} else if column.DataType == "varchar" {
-			length := 1
-			if column.DataLen > 1 {
-				maxLen := util.MinInt(column.DataLen, 32)
-				length = util.Rd(maxLen-1) + 1
-			}
+		} else if column[1] == "varchar" {
+			// length := 1
+			// if column.DataLen > 1 {
+			// 	maxLen := util.MinInt(column.DataLen, 32)
+			// 	length = util.Rd(maxLen-1) + 1
+			// }
+			length := dataType2Len(column[1])
 			name = fmt.Sprintf("%s(%d)", name, length)
 		}
 		node.IndexPartSpecifications = append(node.IndexPartSpecifications,
@@ -81,47 +82,40 @@ func (e *Executor) walkInsertStmtForTable(node *ast.InsertStmt, tableName string
 	if !ok {
 		return "", errors.Errorf("table %s not exist", tableName)
 	}
-	node.Table.TableRefs.Left.(*ast.TableName).Name = model.NewCIStr(table.Table)
+	node.Table.TableRefs.Left.(*ast.TableName).Name = table.Name
 	columns := e.walkColumns(&node.Columns, table)
 	e.walkLists(&node.Lists, columns)
 	return BufferOut(node)
 }
 
-func (e *Executor) walkColumns(columns *[]*ast.ColumnName, table *types.Table) []*types.Column {
-	var cols []*types.Column
+func (e *Executor) walkColumns(columns *[]*ast.ColumnName, table *types.Table) [][3]string {
+	var cols [][3]string
 	for _, column := range table.Columns {
-		if strings.HasPrefix(column.Column, "id_") || column.Column == "id" {
+		if strings.HasPrefix(column[0], "id_") || column[0] == "id" {
 			continue
 		}
 		*columns = append(*columns, &ast.ColumnName{
-			Table: model.NewCIStr(column.Table),
-			Name:  model.NewCIStr(column.Column),
+			Table: table.Name,
+			Name:  model.NewCIStr(column[0]),
 		})
 		cols = append(cols, column)
 	}
 	return cols
 }
 
-func (e *Executor) walkLists(lists *[][]ast.ExprNode, columns []*types.Column) {
-	var noIDColumns []*types.Column
-	for _, column := range columns {
-		if strings.HasPrefix(column.Column, "id_") || column.Column == "id" {
-			continue
-		}
-		noIDColumns = append(noIDColumns, column)
-	}
-	count := util.RdRange(10, 20)
+func (e *Executor) walkLists(lists *[][]ast.ExprNode, columns [][3]string) {
+	count := int(util.RdRange(10, 20))
 	for i := 0; i < count; i++ {
-		*lists = append(*lists, randList(noIDColumns))
+		*lists = append(*lists, randList(columns))
 	}
 	// *lists = append(*lists, randor0(columns)...)
 }
 
-func randor0(cols []*types.Column) [][]ast.ExprNode {
+func randor0(cols [][3]string) [][]ast.ExprNode {
 	var (
 		res     [][]ast.ExprNode
-		zeroVal = ast.NewValueExpr(GenerateZeroDataItem(cols[0]), "", "")
-		randVal = ast.NewValueExpr(GenerateDataItem(cols[0]), "", "")
+		zeroVal = ast.NewValueExpr(GenerateZeroDataItem(cols[0][1]), "", "")
+		randVal = ast.NewValueExpr(GenerateDataItem(cols[0][1]), "", "")
 		nullVal = ast.NewValueExpr(nil, "", "")
 	)
 
@@ -139,19 +133,19 @@ func randor0(cols []*types.Column) [][]ast.ExprNode {
 	return res
 }
 
-func randList(columns []*types.Column) []ast.ExprNode {
+func randList(columns [][3]string) []ast.ExprNode {
 	var list []ast.ExprNode
 	for _, column := range columns {
 		// GenerateEnumDataItem
 		switch util.Rd(3) {
 		case 0:
-			if column.HasOption(ast.ColumnOptionNotNull) {
-				list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column), "", ""))
+			if column[2] == "NO" {
+				list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column[1]), "", ""))
 			} else {
 				list = append(list, ast.NewValueExpr(nil, "", ""))
 			}
 		default:
-			list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column), "", ""))
+			list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column[1]), "", ""))
 		}
 	}
 	return list

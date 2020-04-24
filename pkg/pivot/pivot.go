@@ -8,9 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
-
 	"github.com/juju/errors"
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
@@ -18,9 +15,18 @@ import (
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
 	"github.com/chaos-mesh/go-sqlancer/pkg/executor"
+	"github.com/chaos-mesh/go-sqlancer/pkg/generator"
+	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
+	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
+)
+
+var (
+	allColumnTypes = []string{"int", "float", "varchar"}
 )
 
 type Pivot struct {
@@ -30,7 +36,7 @@ type Pivot struct {
 	Executor *executor.Executor
 	round    int
 
-	Generator
+	generator.Generator
 }
 
 // NewPivot ...
@@ -42,7 +48,7 @@ func NewPivot(conf *Config) (*Pivot, error) {
 	return &Pivot{
 		Conf:      conf,
 		Executor:  e,
-		Generator: Generator{},
+		Generator: generator.Generator{},
 	}, nil
 }
 
@@ -98,7 +104,7 @@ func (p *Pivot) prepare(ctx context.Context) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	g, _ := errgroup.WithContext(ctx)
-	for index, columnTypes := range ComposeAllColumnTypes(-1) {
+	for index, columnTypes := range ComposeAllColumnTypes(-1, allColumnTypes) {
 		tableIndex := index
 		colTs := make([]string, len(columnTypes))
 		copy(colTs, columnTypes)
@@ -125,7 +131,7 @@ func (p *Pivot) prepare(ctx context.Context) {
 	}
 
 	for _, table := range p.Executor.GetTables() {
-		sql, err := p.Executor.GenerateDMLInsertByTable(table.Table)
+		sql, err := p.Executor.GenerateDMLInsertByTable(table.Name.L)
 		if err != nil {
 			panic(errors.ErrorStack(err))
 		}
@@ -255,11 +261,11 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 }
 
 func (p *Pivot) GenSelectStmt(pivotRows map[TableColumn]*connection.QueryItem, usedTables []Table) (*ast.SelectStmt, string, []TableColumn, error) {
-	stmtAst, err := p.selectStmtAst(p.Conf.Depth, usedTables)
+	stmtAst, err := p.SelectStmtAst(p.Conf.Depth, usedTables)
 	if err != nil {
 		return nil, "", nil, err
 	}
-	sql, columns, err := p.selectStmt(&stmtAst, usedTables, pivotRows)
+	sql, columns, err := p.SelectStmt(&stmtAst, usedTables, pivotRows)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -281,6 +287,9 @@ func (p *Pivot) ExecAndVerify(stmt *ast.SelectStmt, originRow map[TableColumn]*c
 
 // may not return string
 func (p *Pivot) execSelect(stmt string) ([][]*connection.QueryItem, error) {
+	if p.Conf.Debug {
+		fmt.Println("[DEBUG] SQL exec: " + stmt)
+	}
 	return p.Executor.GetConn().Select(stmt)
 }
 
@@ -290,23 +299,18 @@ func (p *Pivot) verify(originRow map[TableColumn]*connection.QueryItem, columns 
 			return true
 		}
 	}
-	//fmt.Println("=========  ORIGIN ROWS ======")
-	//for k, v := range originRow {
-	//	fmt.Printf("key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
-	//}
-	//
-	//fmt.Println("=========  COLUMNS ======")
-	//for _, c := range columns {
-	//	fmt.Printf("Table: %s, Name: %s\n", c.Table, c.Name)
-	//}
-	// fmt.Printf("=========  DATA ======, count: %d\n", len(resultSets))
-	// for i, r := range resultSets {
-	// 	fmt.Printf("$$$$$$$$$ line %d\n", i)
-	// 	for j, c := range r {
-	// 		fmt.Printf("  table: %s, field: %s, field: %s, value: %s\n", columns[j].Table, columns[j].Name, c.ValType.Name(), c.ValString)
-	// 	}
-	// }
+	if p.Conf.Debug {
+		fmt.Println("[DEBUG]")
+		fmt.Println("  =========  ORIGIN ROWS ======")
+		for k, v := range originRow {
+			fmt.Printf("  key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
+		}
 
+		fmt.Println("  =========  COLUMNS ======")
+		for _, c := range columns {
+			fmt.Printf("  Table: %s, Name: %s\n", c.Table, c.Name)
+		}
+	}
 	return false
 }
 
@@ -327,7 +331,7 @@ func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[TableColumn]*co
 		selectStmt = stmt
 	}
 	p.RectifyCondition(selectStmt, usedTable, pivotRows)
-	usedColumns := p.collectColumnNames(selectStmt.Where)
+	usedColumns := p.CollectColumnNames(selectStmt.Where)
 	selectStmt.Fields.Fields = make([]*ast.SelectField, 0)
 	for _, name := range usedColumns {
 		selectField := ast.SelectField{
@@ -412,7 +416,7 @@ func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Tab
 
 func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[TableColumn]*connection.QueryItem, exist bool) bool {
 	where := sel.Where
-	out := Evaluate(where, usedTables, pivotRows)
+	out := generator.Evaluate(where, usedTables, pivotRows)
 
 	switch out.Kind() {
 	case tidb_types.KindNull:

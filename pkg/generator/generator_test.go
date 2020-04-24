@@ -1,8 +1,9 @@
-package pivot
+package generator
 
 import (
 	"testing"
 
+	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"

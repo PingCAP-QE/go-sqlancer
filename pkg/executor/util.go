@@ -48,11 +48,11 @@ func RdType() string {
 func RdDataLen(t string) int {
 	switch t {
 	case "int":
-		return util.RdRange(1, 20)
+		return int(util.RdRange(1, 20))
 	case "varchar":
-		return util.RdRange(1, 2047)
+		return int(util.RdRange(1, 2047))
 	case "float":
-		return util.RdRange(16, 64)
+		return int(util.RdRange(16, 64))
 	case "timestamp":
 		return -1
 	case "datetime":

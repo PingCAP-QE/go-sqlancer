@@ -1,28 +1,16 @@
-package pivot
+package util
 
 import (
-	"bytes"
 	"fmt"
 	"math/rand"
-	"strings"
 	"time"
 
 	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/format"
-	"github.com/pingcap/parser/mysql"
-	"github.com/pingcap/parser/types"
 )
 
-var (
-	allColumnTypes = []string{
-		"int",
-		"varchar",
-		"float",
-		//"timestamp",
-		//"datetime",
-		"text",
-	}
-)
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 // Rd same to rand.Intn
 func Rd(n int) int {
@@ -163,102 +151,4 @@ func RdCharset() string {
 
 func RdBool() bool {
 	return Rd(2) == 0
-}
-
-func BufferOut(node ast.Node) (string, error) {
-	out := new(bytes.Buffer)
-	err := node.Restore(format.NewRestoreCtx(format.RestoreStringDoubleQuotes, out))
-	if err != nil {
-		return "", err
-	}
-	return out.String(), nil
-}
-
-// TODO: decimal NOT Equals to float
-func TransMysqlType(t *types.FieldType) int {
-	switch t.Tp {
-	case mysql.TypeTiny, mysql.TypeShort, mysql.TypeLong, mysql.TypeLonglong, mysql.TypeInt24:
-		return IntArg
-	case mysql.TypeDecimal, mysql.TypeFloat, mysql.TypeDouble:
-		return FloatArg
-	case mysql.TypeTimestamp, mysql.TypeDate, mysql.TypeDatetime:
-		return DatetimeArg
-	case mysql.TypeVarchar, mysql.TypeJSON, mysql.TypeVarString, mysql.TypeString:
-		return StringArg
-	case mysql.TypeNull:
-		return NullArg
-	default:
-		panic(fmt.Sprintf("no implement for type: %s", t.String()))
-	}
-}
-
-// TODO: decimal NOT Equals to float
-func TransStringType(s string) int {
-	s = strings.ToLower(s)
-	switch {
-	case strings.Contains(s, "string"), strings.Contains(s, "char"), strings.Contains(s, "text"), strings.Contains(s, "json"):
-		return StringArg
-	case strings.Contains(s, "int"), strings.Contains(s, "long"), strings.Contains(s, "short"), strings.Contains(s, "tiny"):
-		return IntArg
-	case strings.Contains(s, "float"), strings.Contains(s, "decimal"), strings.Contains(s, "double"):
-		return FloatArg
-	case strings.Contains(s, "time"), strings.Contains(s, "date"):
-		return DatetimeArg
-	default:
-		panic(fmt.Sprintf("no implement for type: %s", s))
-	}
-}
-
-func TransToMysqlType(i int) byte {
-	switch i {
-	case IntArg:
-		return mysql.TypeLong
-	case FloatArg:
-		return mysql.TypeDouble
-	case DatetimeArg:
-		return mysql.TypeDatetime
-	case StringArg:
-		return mysql.TypeVarchar
-	default:
-		panic(fmt.Sprintf("no implement this type: %d", i))
-	}
-}
-
-// ComposeAllColumnTypes get all column type combinations
-// length stands for the max types combined in one table, -1 to unlimit
-func ComposeAllColumnTypes(length int) [][]string {
-	var res [][]string
-	if length == -1 {
-		length = len(allColumnTypes)
-	}
-	for i := 1; i <= length; i++ {
-		indexes := make([]int, i, i)
-		for j := 0; j < i; j++ {
-			indexes[j] = j
-		}
-
-		for {
-			table := make([]string, i, i)
-			for j, index := range indexes {
-				table[j] = allColumnTypes[index]
-			}
-			res = append(res, table)
-
-			finish := true
-			for j := len(indexes) - 1; j >= 0; j-- {
-				if indexes[j] < len(allColumnTypes)-(len(indexes)-j) {
-					indexes[j]++
-					for k := j + 1; k < len(indexes); k++ {
-						indexes[k] = indexes[k-1] + 1
-					}
-					finish = false
-					break
-				}
-			}
-			if finish {
-				break
-			}
-		}
-	}
-	return res
 }

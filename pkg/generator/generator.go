@@ -1,4 +1,4 @@
-package pivot
+package generator
 
 import (
 	"fmt"
@@ -7,33 +7,26 @@ import (
 	"time"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
+	"github.com/chaos-mesh/go-sqlancer/pkg/generator/operator"
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
+	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/parser/opcode"
-	"github.com/pingcap/parser/types"
+	parser_types "github.com/pingcap/parser/types"
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 )
 
-type Table struct {
-	Name    model.CIStr
-	Columns [][3]string
-	Indexes []model.CIStr
-}
-
-type TableColumn struct {
-	Table string
-	Name  string
-}
-
 type Generator struct {
-	Tables []Table
+	Tables           []types.Table
+	allowColumnTypes []string
 }
 
-func (g *Generator) selectStmtAst(depth int, usedTables []Table) (ast.SelectStmt, error) {
+func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.SelectStmt, error) {
 	selectStmtNode := ast.SelectStmt{
 		SelectStmtOpts: &ast.SelectStmtOpts{
 			SQLCache: true,
@@ -54,7 +47,7 @@ func (g *Generator) selectStmtAst(depth int, usedTables []Table) (ast.SelectStmt
 	return selectStmtNode, nil
 }
 
-func (g *Generator) whereClauseAst(depth int, usedTables []Table) ast.ExprNode {
+func (g *Generator) whereClauseAst(depth int, usedTables []types.Table) ast.ExprNode {
 	// TODO: support single operation like NOT
 	// TODO: support func
 	// TODO: support subquery
@@ -71,7 +64,7 @@ func (g *Generator) whereClauseAst(depth int, usedTables []Table) ast.ExprNode {
 }
 
 // change ParenthesesExpr to more extensive
-func (g *Generator) makeBinaryOp(e *ast.ParenthesesExpr, depth int, usedTables []Table) {
+func (g *Generator) makeBinaryOp(e *ast.ParenthesesExpr, depth int, usedTables []types.Table) {
 	node := ast.BinaryOperationExpr{}
 	e.Expr = &node
 	if depth > 0 {
@@ -91,45 +84,36 @@ func (g *Generator) makeBinaryOp(e *ast.ParenthesesExpr, depth int, usedTables [
 			node.R = g.whereClauseAst(Rd(depth), usedTables)
 		}
 	} else {
-		var f Function
 		switch Rd(9) {
 		case 0:
 			node.Op = opcode.GT
-			f = Gt
 		case 1:
 			node.Op = opcode.LT
-			f = Lt
 		case 2:
 			node.Op = opcode.NE
-			f = Ne
 		case 3:
 			node.Op = opcode.LE
-			f = Le
 		case 4:
 			node.Op = opcode.GE
-			f = Ge
 		case 5:
 			node.Op = opcode.EQ
-			f = Eq
 		case 6:
 			node.Op = opcode.LogicXor
-			f = LogicAnd
 		case 7:
 			node.Op = opcode.LogicOr
-			f = LogicOr
 		default:
 			node.Op = opcode.LogicAnd
-			f = LogicXor
 		}
+		f := operator.BinaryOps.Find(opcode.Ops[node.Op])
 		argType := 0
 		if Rd(3) > 0 {
-			node.L = g.columnExpr(usedTables, AnyArg)
+			node.L = g.columnExpr(usedTables, types.AnyArg)
 			argType = TransMysqlType(node.L.GetType())
 		} else {
-			node.L = g.constValueExpr(AnyArg)
+			node.L = g.constValueExpr(types.AnyArg)
 			argType = TransMysqlType(node.L.GetType())
 		}
-		acceptType := f.AcceptType[0][argType]
+		acceptType := f.GetAcceptType(0, argType)
 		if Rd(3) > 0 {
 			node.R = g.columnExpr(usedTables, acceptType)
 		} else {
@@ -138,7 +122,7 @@ func (g *Generator) makeBinaryOp(e *ast.ParenthesesExpr, depth int, usedTables [
 	}
 }
 
-func (g *Generator) makeUnaryOp(e *ast.ParenthesesExpr, depth int, usedTables []Table) {
+func (g *Generator) makeUnaryOp(e *ast.ParenthesesExpr, depth int, usedTables []types.Table) {
 	node := ast.UnaryOperationExpr{}
 	e.Expr = &node
 	if depth > 0 {
@@ -153,9 +137,9 @@ func (g *Generator) makeUnaryOp(e *ast.ParenthesesExpr, depth int, usedTables []
 			node.Op = opcode.Not
 			// no need to check params number
 			if Rd(3) > 0 {
-				node.V = g.columnExpr(usedTables, AnyArg)
+				node.V = g.columnExpr(usedTables, types.AnyArg)
 			} else {
-				node.V = g.constValueExpr(AnyArg)
+				node.V = g.constValueExpr(types.AnyArg)
 			}
 		}
 	}
@@ -165,7 +149,7 @@ func (g *Generator) makeUnaryOp(e *ast.ParenthesesExpr, depth int, usedTables []
 func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
 	switch x := Rd(13); x {
 	case 6, 7, 8, 9, 10:
-		if arg&FloatArg != 0 {
+		if arg&types.FloatArg != 0 {
 			switch y := Rd(6); y {
 			case 0, 1:
 				return ast.NewValueExpr(float64(0), "", "")
@@ -193,7 +177,7 @@ func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
 	//	}
 	//	fallthrough
 	case 3, 4, 5:
-		if arg&IntArg != 0 {
+		if arg&types.IntArg != 0 {
 			switch y := Rd(6); y {
 			case 0, 1:
 				return ast.NewValueExpr(0, "", "")
@@ -207,20 +191,20 @@ func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
 		}
 		fallthrough
 	case 0, 1, 2:
-		if arg&StringArg != 0 {
+		if arg&types.StringArg != 0 {
 			switch y := Rd(3); y {
 			case 0, 1:
 				return ast.NewValueExpr(RdString(Rd(10)), "", "")
 			default:
 				return ast.NewValueExpr("", "", "")
 			}
-		} else if arg&DatetimeAsStringArg != 0 {
+		} else if arg&types.DatetimeAsStringArg != 0 {
 			return ast.NewValueExpr(RdTimestamp().Format("2006-01-02 15:04:05"), "", "")
 		}
 		fallthrough
 	default:
 		// NULL?
-		if arg&NullArg == 0 {
+		if arg&types.NullArg == 0 {
 			// generate again
 			return g.constValueExpr(arg)
 		}
@@ -228,7 +212,7 @@ func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
 	}
 }
 
-func (g *Generator) columnExpr(usedTables []Table, arg int) *ast.ColumnNameExpr {
+func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNameExpr {
 	randTable := usedTables[Rd(len(usedTables))]
 	tempCols := make([][3]string, 0)
 	for i := range randTable.Columns {
@@ -246,13 +230,13 @@ func (g *Generator) columnExpr(usedTables []Table, arg int) *ast.ColumnNameExpr 
 		Table: randTable.Name,
 		Name:  model.NewCIStr(colName),
 	}
-	col.Type = types.FieldType{}
+	col.Type = parser_types.FieldType{}
 	col.SetType(tidb_types.NewFieldType(TransToMysqlType(TransStringType(typeStr))))
 	return col
 }
 
 // walk on select stmt
-func (g *Generator) selectStmt(node *ast.SelectStmt, usedTables []Table, pivotRows map[TableColumn]*connection.QueryItem) (string, []TableColumn, error) {
+func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) (string, []types.TableColumn, error) {
 	g.walkResultSetNode(node.From.TableRefs, usedTables)
 	// if node.From.TableRefs.Right == nil && node.From.TableRefs.Left != nil {
 	// 	table = s.walkResultSetNode(node.From.TableRefs.Left)
@@ -278,48 +262,22 @@ func (g *Generator) selectStmt(node *ast.SelectStmt, usedTables []Table, pivotRo
 	return sql, columnInfos, err
 }
 
-func evaluateRow(e ast.Node, usedTables []Table, pivotRows map[TableColumn]interface{}) parser_driver.ValueExpr {
+func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.TableColumn]interface{}) parser_driver.ValueExpr {
 	switch t := e.(type) {
 	case *ast.ParenthesesExpr:
 		return evaluateRow(t.Expr, usedTables, pivotRows)
 	case *ast.BinaryOperationExpr:
-		switch t.Op {
-		case opcode.LogicXor:
-			r, _ := LogicXor.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
-			return r
-		case opcode.LogicAnd:
-			r, _ := LogicAnd.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
-			return r
-		case opcode.LogicOr:
-			r, _ := LogicOr.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
-			return r
-		case opcode.GT:
-			r, _ := Gt.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
-			return r
-		case opcode.GE:
-			r, _ := Ge.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
-			return r
-		case opcode.LT:
-			r, _ := Lt.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
-			return r
-		case opcode.LE:
-			r, _ := Le.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
-			return r
-		case opcode.NE:
-			r, _ := Ne.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
-			return r
-		case opcode.EQ:
-			r, _ := Eq.Eval(evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
-			return r
-		default:
-			panic(fmt.Sprintf("no op implements %s %d", t.Op.String(), t.Op))
+		res, err := operator.BinaryOps.Eval(opcode.Ops[t.Op], evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
+		if err != nil {
+			panic(fmt.Sprintf("error occurred on eval: %+v", err))
 		}
+		return res
 	case *ast.UnaryOperationExpr:
-		switch t.Op {
-		case opcode.Not:
-			r, _ := Not.Eval(evaluateRow(t.V, usedTables, pivotRows))
-			return r
+		res, err := operator.UnaryOps.Eval(opcode.Ops[t.Op], evaluateRow(t.V, usedTables, pivotRows))
+		if err != nil {
+			panic(fmt.Sprintf("error occurred on eval: %+v", err))
 		}
+		return res
 	case *ast.IsNullExpr:
 		subResult := evaluateRow(t.Expr, usedTables, pivotRows)
 		c := ConvertToBoolOrNull(subResult)
@@ -343,8 +301,6 @@ func evaluateRow(e ast.Node, usedTables []Table, pivotRows map[TableColumn]inter
 		v.SetValue(t.GetValue())
 		v.SetType(t.GetType())
 		return v
-	case *parser_driver.ValueExpr: // is reachable?
-		panic("not reachable")
 	}
 
 	if e == nil {
@@ -357,8 +313,8 @@ func evaluateRow(e ast.Node, usedTables []Table, pivotRows map[TableColumn]inter
 	return v
 }
 
-func Evaluate(whereClause ast.Node, usedTables []Table, pivotRows map[TableColumn]*connection.QueryItem) parser_driver.ValueExpr {
-	row := map[TableColumn]interface{}{}
+func Evaluate(whereClause ast.Node, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) parser_driver.ValueExpr {
+	row := map[types.TableColumn]interface{}{}
 	for key, value := range pivotRows {
 		row[key], _ = getTypedValue(value)
 	}
@@ -395,7 +351,7 @@ func getTypedValue(it *connection.QueryItem) (interface{}, byte) {
 	}
 }
 
-func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []Table, pivotRows map[TableColumn]*connection.QueryItem) {
+func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) {
 	out := Evaluate(node.Where, usedTables, pivotRows)
 	pthese := ast.ParenthesesExpr{}
 	pthese.Expr = node.Where
@@ -419,8 +375,8 @@ func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []Table, p
 	}
 }
 
-func (g *Generator) walkResultFields(node *ast.SelectStmt, usedTables []Table) []TableColumn {
-	columns := make([]TableColumn, 0)
+func (g *Generator) walkResultFields(node *ast.SelectStmt, usedTables []types.Table) []types.TableColumn {
+	columns := make([]types.TableColumn, 0)
 	for _, table := range usedTables {
 		for _, column := range table.Columns {
 			selectField := ast.SelectField{
@@ -432,13 +388,13 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, usedTables []Table) [
 				},
 			}
 			node.Fields.Fields = append(node.Fields.Fields, &selectField)
-			columns = append(columns, TableColumn{table.Name.O, column[0]})
+			columns = append(columns, types.TableColumn{table.Name.O, column[0]})
 		}
 	}
 	return columns
 }
 
-func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []Table) {
+func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) {
 	l := len(usedTables)
 	var left *ast.Join = node
 	// TODO: it works, but need to refactory
@@ -470,7 +426,7 @@ func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []Table) {
 	}
 }
 
-func (g *Generator) collectColumnNames(node ast.Node) []ast.ColumnName {
+func (g *Generator) CollectColumnNames(node ast.Node) []ast.ColumnName {
 	collector := columnNameVisitor{
 		Columns: make(map[string]ast.ColumnName),
 	}

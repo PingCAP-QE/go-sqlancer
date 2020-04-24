@@ -16,6 +16,7 @@ const (
 	nmDuration  = "duration"
 	sqlDepth    = "depth"
 	silentMode  = "silent"
+	nmDebug     = "debug"
 )
 
 var (
@@ -25,6 +26,7 @@ var (
 	duration  = flag.Duration(nmDuration, 5*time.Minute, "fuzz duration")
 	depth     = flag.Int(sqlDepth, 1, "sql depth")
 	silent    = flag.Bool(silentMode, false, "silent when verify failed")
+	debug     = flag.Bool(nmDebug, false, "enable debug output")
 )
 
 func main() {
@@ -67,5 +69,8 @@ func loadConfig() {
 	}
 	if actualFlags[silentMode] {
 		conf.Silent = *silent
+	}
+	if actualFlags[nmDebug] {
+		conf.Debug = *debug
 	}
 }

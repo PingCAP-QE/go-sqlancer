@@ -114,14 +114,15 @@ func (c *Connection) FetchColumns(db, table string) ([][3]string, error) {
 	var columns [][3]string
 	res, err := c.db.Query(fmt.Sprintf(tableSQL, db, table))
 	if err != nil {
-		return [][3]string{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 	for res.Next() {
 		var columnName, columnType, nullValue, index string
 		var defaultValue, extra interface{}
 		if err = res.Scan(&columnName, &columnType, &nullValue, &index, &defaultValue, &extra); err != nil {
-			return [][3]string{}, errors.Trace(err)
+			return nil, errors.Trace(err)
 		}
+		// columns = append(columns, [3]string{columnName, columnType, nullValue})
 		columns = append(columns, [3]string{columnName, columnType, nullValue})
 	}
 	return columns, nil
