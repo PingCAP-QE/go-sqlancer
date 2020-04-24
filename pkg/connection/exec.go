@@ -15,10 +15,12 @@ package connection
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ngaut/log"
 
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
@@ -173,8 +175,12 @@ func (c *Connection) ShowDatabases() ([]string, error) {
 }
 
 // CreateViewBySelect create veiw from select statement
-func (c *Connection) CreateViewBySelect(view, selectStmt string, rows int) error {
-	viewStmt := fmt.Sprintf("CREATE VIEW `%s` AS %s LIMIT %d, %d", view, selectStmt, util.Rd(rows), util.RdRange(5, 15))
+func (c *Connection) CreateViewBySelect(view, selectStmt string, rows int, columns []types.TableColumn) error {
+	var order []string
+	for _, column := range columns {
+		order = append(order, fmt.Sprintf("%s.%s", column.Table, column.Name))
+	}
+	viewStmt := fmt.Sprintf("CREATE VIEW `%s` AS %s ORDER BY %s LIMIT %d, %d", view, selectStmt, strings.Join(order, ", "), util.Rd(rows), util.RdRange(5, 15))
 	_, err := c.db.Exec(viewStmt)
 	return err
 }

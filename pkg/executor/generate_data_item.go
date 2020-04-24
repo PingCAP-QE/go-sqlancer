@@ -141,6 +141,7 @@ func GenerateEnumDataItem(columnType string) interface{} {
 	case "float":
 		res = floatEnums[util.Rd(len(floatEnums))]
 	}
+
 	return res
 }
 
