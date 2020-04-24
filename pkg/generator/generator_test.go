@@ -35,11 +35,7 @@ func TestCase1(t *testing.T) {
 	//CREATE INDEX i0 ON t0(c0(10));
 	//SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0; -- expected: {1}, actual: {}
 
-<<<<<<< HEAD
 	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0"), []Table{{
-=======
-	value := EvaluateRow(parse(t, "SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0"), []Table{{
->>>>>>> add DEBUG flag
 		Name:    model.NewCIStr("t0"),
 		Columns: [][3]string{{"c0", "float", "YES"}},
 		Indexes: nil,
