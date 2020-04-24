@@ -6,7 +6,6 @@ import (
 
 	"github.com/pingcap/parser/opcode"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
-	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 // TODO: can it copy from tidb/types?
