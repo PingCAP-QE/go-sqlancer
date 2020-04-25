@@ -333,13 +333,14 @@ func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[TableColumn]*co
 	p.RectifyCondition(selectStmt, usedTable, pivotRows)
 	usedColumns := p.CollectColumnNames(selectStmt.Where)
 	selectStmt.Fields.Fields = make([]*ast.SelectField, 0)
-	for _, name := range usedColumns {
-		selectField := ast.SelectField{
+	for _, column := range usedColumns {
+		name := column
+		selectField := &ast.SelectField{
 			Expr: &ast.ColumnNameExpr{
 				Name: &name,
 			},
 		}
-		selectStmt.Fields.Fields = append(selectStmt.Fields.Fields, &selectField)
+		selectStmt.Fields.Fields = append(selectStmt.Fields.Fields, selectField)
 	}
 	if len(selectStmt.Fields.Fields) == 0 {
 		selectStmt.Fields.Fields = append(selectStmt.Fields.Fields, &ast.SelectField{

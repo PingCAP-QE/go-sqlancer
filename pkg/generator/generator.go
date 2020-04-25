@@ -440,7 +440,6 @@ type columnNameVisitor struct {
 }
 
 func (v *columnNameVisitor) Enter(in ast.Node) (out ast.Node, skipChildren bool) {
-	fmt.Printf("%T\n", in)
 	switch n := in.(type) {
 	case *ast.ColumnName:
 		if _, ok := v.Columns[n.String()]; !ok {
