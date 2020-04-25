@@ -40,7 +40,7 @@ func TestCase1(t *testing.T) {
 		Columns: [][3]string{{"c0", "float", "YES"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Name: "c0"}: 1,
+		TableColumn{Table: "t0", Column: "c0"}: 1,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -54,7 +54,7 @@ func TestCase1(t *testing.T) {
 //		Columns: [][3]string{{"c0", "double unsigned", "YES"}},
 //		Indexes: nil,
 //	}}, map[TableColumn]interface{}{
-//		TableColumn{Table: "t0", Name: "c0"}: 1.0,
+//		TableColumn{Table: "t0", Column: "c0"}: 1.0,
 //	})
 //	require.Equal(t, false, isTrueValue(value))
 //}
@@ -68,7 +68,7 @@ func TestCase4(t *testing.T) {
 		Columns: [][3]string{{"c0", "NUMERIC", "YES"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Name: "c0"}: 0.0,
+		TableColumn{Table: "t0", Column: "c0"}: 0.0,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -82,7 +82,7 @@ func TestCase6(t *testing.T) {
 		Columns: [][3]string{{"c0", "CHAR", "YES"}, {"t1", "INT"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Name: "c0"}: "0",
+		TableColumn{Table: "t0", Column: "c0"}: "0",
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -98,8 +98,8 @@ func TestCase8(t *testing.T) {
 		Columns: [][3]string{{"c0", "INT", "YES"}, {"t1", "INT"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Name: "c0"}: 1,
-		TableColumn{Table: "t0", Name: "c1"}: 0,
+		TableColumn{Table: "t0", Column: "c0"}: 1,
+		TableColumn{Table: "t0", Column: "c1"}: 0,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -113,8 +113,8 @@ func TestCase11(t *testing.T) {
 		Columns: [][3]string{{"c0", "INT", "YES"}, {"t1", "INT"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Name: "c0"}: 1,
-		TableColumn{Table: "t0", Name: "c1"}: 0,
+		TableColumn{Table: "t0", Column: "c0"}: 1,
+		TableColumn{Table: "t0", Column: "c1"}: 0,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -129,7 +129,7 @@ func TestCase12(t *testing.T) {
 		Columns: [][3]string{{"c0", "TEXT", "YES"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Name: "c0"}: "1",
+		TableColumn{Table: "t0", Column: "c0"}: "1",
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -143,7 +143,7 @@ func TestCase14(t *testing.T) {
 		Columns: [][3]string{{"c0", "float", "YES"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Name: "c0"}: nil,
+		TableColumn{Table: "t0", Column: "c0"}: nil,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -158,7 +158,7 @@ func TestCase14(t *testing.T) {
 //		Columns: [][3]string{{"c0", "int", "YES"}},
 //		Indexes: nil,
 //	}}, map[TableColumn]interface{}{
-//		TableColumn{Table: "t0", Name: "c0"}: 0,
+//		TableColumn{Table: "t0", Column: "c0"}: 0,
 //	})
 //	require.Equal(t, true, isTrueValue(value))
 //}
@@ -184,8 +184,8 @@ func TestCase16(t *testing.T) {
 //		Columns: [][3]string{{"c0", "float", "YES"}},
 //		Indexes: nil,
 //	}}, map[TableColumn]interface{}{
-//		TableColumn{Table: "t0", Name: "c0"}: 0.0,
-//		TableColumn{Table: "t1", Name: "c0"}: 0.0,
+//		TableColumn{Table: "t0", Column: "c0"}: 0.0,
+//		TableColumn{Table: "t1", Column: "c0"}: 0.0,
 //	})
 //	require.Equal(t, true, isTrueValue(value))
 //}
@@ -199,7 +199,7 @@ func TestCase29(t *testing.T) {
 		Columns: [][3]string{{"c0", "bool", "YES"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Name: "c0"}: false,
+		TableColumn{Table: "t0", Column: "c0"}: false,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -220,7 +220,7 @@ func TestCase31(t *testing.T) {
 		Columns: [][3]string{{"c0", "int", "YES"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Name: "c0"}: 2,
+		TableColumn{Table: "t0", Column: "c0"}: 2,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -231,8 +231,8 @@ func TestCase_s01(t *testing.T) {
 		Columns: [][3]string{{"col_varchar", "varchar", "YES"}, {"col_text", "text", "YES"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "table_int_varchar_text", Name: "col_varchar"}: 0,
-		TableColumn{Table: "table_int_varchar_text", Name: "col_text"}:    nil,
+		TableColumn{Table: "table_int_varchar_text", Column: "col_varchar"}: 0,
+		TableColumn{Table: "table_int_varchar_text", Column: "col_text"}:    nil,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -243,7 +243,7 @@ func TestCase_s02(t *testing.T) {
 		Columns: [][3]string{{"c0", "int", "YES"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Name: "c0"}: 2,
+		TableColumn{Table: "t0", Column: "c0"}: 2,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -265,8 +265,8 @@ WHERE (((!table_int_varchar_float_text.id) XOR (-1
 		Columns: [][3]string{{"id", "int", "YES"}, {"col_int", "int", "YES"}},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "table_int_varchar_float_text", Name: "id"}:        5,
-		TableColumn{Table: "table_int_varchar_float_text", Name: "col_float"}: nil,
+		TableColumn{Table: "table_int_varchar_float_text", Column: "id"}:        5,
+		TableColumn{Table: "table_int_varchar_float_text", Column: "col_float"}: nil,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -305,12 +305,12 @@ WHERE !((table_varchar_float_text.col_float XOR 15))
 		},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "table_varchar_float_text", Name: "id"}:          15,
-		TableColumn{Table: "table_varchar_float_text", Name: "col_varchar"}: true,
-		TableColumn{Table: "table_varchar_float_text", Name: "col_float"}:   -0.1,
-		TableColumn{Table: "table_varchar_float_text", Name: "col_text"}:    -1,
-		TableColumn{Table: "table_int", Name: "id"}:                         9,
-		TableColumn{Table: "table_int", Name: "col_int"}:                    1,
+		TableColumn{Table: "table_varchar_float_text", Column: "id"}:          15,
+		TableColumn{Table: "table_varchar_float_text", Column: "col_varchar"}: true,
+		TableColumn{Table: "table_varchar_float_text", Column: "col_float"}:   -0.1,
+		TableColumn{Table: "table_varchar_float_text", Column: "col_text"}:    -1,
+		TableColumn{Table: "table_int", Column: "id"}:                         9,
+		TableColumn{Table: "table_int", Column: "col_int"}:                    1,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -347,8 +347,8 @@ WHERE ((table_int_varchar_text.id XOR 4.0631823313220344e-01) XOR (!table_int_va
 		},
 		Indexes: nil,
 	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "table_int_varchar_text", Name: "id"}:       8,
-		TableColumn{Table: "table_int_varchar_text", Name: "col_text"}: "0",
+		TableColumn{Table: "table_int_varchar_text", Column: "id"}:       8,
+		TableColumn{Table: "table_int_varchar_text", Column: "col_text"}: "0",
 	})
 	require.Equal(t, true, isTrueValue(value))
 }

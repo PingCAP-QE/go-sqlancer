@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 
@@ -203,9 +204,7 @@ func (p *Pivot) progress(ctx context.Context) {
 			}
 		}
 		fmt.Printf("row:\n")
-		for column, value := range pivotRows {
-			fmt.Printf("%s.%s:%v\n", column.Table, column.Name, value.ValString)
-		}
+		p.printPivotRows(pivotRows)
 		if p.Conf.Silent && p.round >= p.Conf.ViewCount {
 			return
 		}
@@ -249,7 +248,7 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 		}
 		if len(exeRes) > 0 {
 			for _, c := range exeRes[0] {
-				// panic(fmt.Sprintf("no rows in table %s", i.Name))
+				// panic(fmt.Sprintf("no rows in table %s", i.Column))
 				tableColumn := TableColumn{i.Name.O, c.ValType.Name()}
 				result[tableColumn] = c
 			}
@@ -308,7 +307,7 @@ func (p *Pivot) verify(originRow map[TableColumn]*connection.QueryItem, columns 
 
 		fmt.Println("  =========  COLUMNS ======")
 		for _, c := range columns {
-			fmt.Printf("  Table: %s, Name: %s\n", c.Table, c.Name)
+			fmt.Printf("  Table: %s, Column: %s\n", c.Table, c.Column)
 		}
 	}
 	return false
@@ -431,6 +430,19 @@ func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRo
 			return exist == false
 		}
 		return exist
+	}
+}
+
+func (p *Pivot) printPivotRows(pivotRows map[TableColumn]*connection.QueryItem) {
+	var tableColumns TableColumns
+	for column := range pivotRows {
+		tableColumns = append(tableColumns, column)
+	}
+
+	sort.Sort(tableColumns)
+	for _, column := range tableColumns {
+		value := pivotRows[column]
+		fmt.Printf("%s.%s=%s\n", column.Table, column.Column, value.String())
 	}
 }
 

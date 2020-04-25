@@ -270,7 +270,7 @@ func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.Table
 		return r
 	case *ast.ColumnNameExpr:
 		for key, value := range pivotRows {
-			if key.Table+"."+key.Name == t.Name.OrigColName() {
+			if key.Table+"."+key.Column == t.Name.OrigColName() {
 				v := parser_driver.ValueExpr{}
 				v.SetValue(value)
 				return v

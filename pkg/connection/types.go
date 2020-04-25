@@ -15,6 +15,8 @@ package connection
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 
 	"github.com/juju/errors"
 )
@@ -24,6 +26,18 @@ type QueryItem struct {
 	Null      bool
 	ValType   *sql.ColumnType
 	ValString string
+}
+
+func (q *QueryItem) String() string {
+	var strValue = q.ValString
+	if q.Null {
+		strValue = "NULL"
+	}
+	switch strings.ToUpper(q.ValType.DatabaseTypeName()) {
+	case "VARCHAR", "CHAR", "TEXT":
+		strValue = fmt.Sprintf("'%s'", q.ValString)
+	}
+	return fmt.Sprintf("%s is %s type", strValue, q.ValType.DatabaseTypeName())
 }
 
 // MustSame compare tow QueryItem and return error if not same
