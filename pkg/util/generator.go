@@ -43,7 +43,7 @@ func ConvertToBoolOrNull(a parser_driver.ValueExpr) int8 {
 		return 1
 	case tidb_types.KindString:
 		s := a.GetValue().(string)
-		match, _ := regexp.MatchString(`^\-{0,1}[1-9]+|^\-{0,1}0+[1-9]`, s)
+		match, _ := regexp.MatchString(`^[\-\+]?[1-9]+|^[\+\-]?0+[1-9]`, s)
 		if match {
 			return 1
 		}
@@ -129,4 +129,14 @@ func TransToMysqlType(i int) byte {
 	default:
 		panic(fmt.Sprintf("no implement this type: %d", i))
 	}
+}
+
+func CompareValue(a, b parser_driver.ValueExpr) bool {
+	if a.Type.Tp != b.Type.Tp {
+		return false
+	}
+	if a.Datum.GetValue() != b.Datum.GetValue() {
+		return false
+	}
+	return true
 }
