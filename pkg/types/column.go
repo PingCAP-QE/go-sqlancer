@@ -13,6 +13,15 @@
 
 package types
 
+import (
+	"regexp"
+	"strconv"
+)
+
+var (
+	typePattern = regexp.MustCompile(`([a-z]*)\(?([0-9]*)\)?`)
+)
+
 // Column defines database column
 type Column struct {
 	Table  CIStr
@@ -30,6 +39,23 @@ func (c *Column) Clone() Column {
 		Type:   c.Type,
 		Length: c.Length,
 		Null:   c.Null,
+	}
+}
+
+// ParseType parse types and data length
+func (c *Column) ParseType(t string) {
+	matches := typePattern.FindStringSubmatch(t)
+	if len(matches) != 3 {
+		return
+	}
+	c.Type = matches[1]
+	if matches[2] != "" {
+		l, err := strconv.Atoi(matches[2])
+		if err == nil {
+			c.Length = l
+		}
+	} else {
+		c.Length = 0
 	}
 }
 

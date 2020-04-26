@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/juju/errors"
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/model"
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
@@ -83,17 +83,25 @@ func (p *Pivot) LoadSchema(ctx context.Context) {
 		panic(err)
 	}
 	for _, i := range tables {
-		t := Table{Name: model.NewCIStr(i)}
-		t.Columns, err = p.Executor.GetConn().FetchColumns(p.Conf.DBName, i)
+		t := Table{Name: CIStr(i)}
+		columns, err := p.Executor.GetConn().FetchColumns(p.Conf.DBName, i)
 		if err != nil {
 			panic(err)
+		}
+		for _, column := range columns {
+			col := Column{
+				Name: CIStr(column[0]),
+				Null: strings.EqualFold(column[2], "Yes"),
+			}
+			col.ParseType(column[1])
+			t.Columns = append(t.Columns, col)
 		}
 		idx, err := p.Executor.GetConn().FetchIndexes(p.Conf.DBName, i)
 		if err != nil {
 			panic(err)
 		}
 		for _, j := range idx {
-			t.Indexes = append(t.Indexes, model.NewCIStr(j))
+			t.Indexes = append(t.Indexes, CIStr(j))
 		}
 		p.Tables = append(p.Tables, t)
 	}
@@ -132,7 +140,7 @@ func (p *Pivot) prepare(ctx context.Context) {
 	}
 
 	for _, table := range p.Executor.GetTables() {
-		sql, err := p.Executor.GenerateDMLInsertByTable(table.Name.L)
+		sql, err := p.Executor.GenerateDMLInsertByTable(table.Name.String())
 		if err != nil {
 			panic(errors.ErrorStack(err))
 		}
@@ -249,7 +257,7 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 		if len(exeRes) > 0 {
 			for _, c := range exeRes[0] {
 				// panic(fmt.Sprintf("no rows in table %s", i.Column))
-				tableColumn := TableColumn{i.Name.O, c.ValType.Name()}
+				tableColumn := TableColumn{i.Name.String(), c.ValType.Name()}
 				result[tableColumn] = c
 			}
 			reallyUsed = append(reallyUsed, i)

@@ -116,22 +116,22 @@ func (e *Executor) walkInsertStmtForTable(node *ast.InsertStmt, tableName string
 	return BufferOut(node)
 }
 
-func (e *Executor) walkColumns(columns *[]*ast.ColumnName, table *types.Table) [][3]string {
-	var cols [][3]string
+func (e *Executor) walkColumns(columns *[]*ast.ColumnName, table *types.Table) []types.Column {
+	var cols []types.Column
 	for _, column := range table.Columns {
 		if column.Name.HasPrefix("id_") || column.Name.EqString("id") {
 			continue
 		}
 		*columns = append(*columns, &ast.ColumnName{
-			Table: table.Name,
-			Name:  model.NewCIStr(column[0]),
+			Table: table.Name.ToModel(),
+			Name:  column.Name.ToModel(),
 		})
-		cols = append(cols, column)
+		cols = append(cols, column.Clone())
 	}
 	return cols
 }
 
-func (e *Executor) walkLists(lists *[][]ast.ExprNode, columns [][3]string) {
+func (e *Executor) walkLists(lists *[][]ast.ExprNode, columns []types.Column) {
 	count := int(util.RdRange(10, 20))
 	for i := 0; i < count; i++ {
 		*lists = append(*lists, randList(columns))
@@ -312,19 +312,19 @@ func (e *Executor) walkPartitionDefinitionsTimestamp(definitions *[]*ast.Partiti
 	}
 }
 
-func randList(columns [][3]string) []ast.ExprNode {
+func randList(columns []types.Column) []ast.ExprNode {
 	var list []ast.ExprNode
 	for _, column := range columns {
 		// GenerateEnumDataItem
 		switch util.Rd(3) {
 		case 0:
-			if column[2] == "NO" {
-				list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column[1]), "", ""))
+			if !column.Null {
+				list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column.Type), "", ""))
 			} else {
 				list = append(list, ast.NewValueExpr(nil, "", ""))
 			}
 		default:
-			list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column[1]), "", ""))
+			list = append(list, ast.NewValueExpr(GenerateEnumDataItem(column.Type), "", ""))
 		}
 	}
 	return list

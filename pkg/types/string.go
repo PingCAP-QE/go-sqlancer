@@ -30,5 +30,5 @@ func (c CIStr) Eq(s CIStr) bool {
 
 // HasPrefix implement strings.HasPrefix
 func (c CIStr) HasPrefix(s string) bool {
-	return strings.HasPrefix(strings.ToLower(string(c)), strings.ToLower(strings))
+	return strings.HasPrefix(strings.ToLower(string(c)), strings.ToLower(s))
 }

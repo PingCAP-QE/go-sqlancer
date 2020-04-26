@@ -83,14 +83,13 @@ LOOP:
 				continue LOOP
 			}
 		}
-		e.tables[tableName].Columns = append(e.tables[tableName].Columns, types.Column{
+		col := types.Column{
 			// columnName, columnType, columnNull
 			Table: types.CIStr(tableName),
 			Name:  types.CIStr(columnName),
-			Type:  columnType,
-			// FIXME: parse length from columnType
-			Length: 10,
-			Null:   strings.EqualFold(columnNull, "Yes"),
-		})
+			Null:  strings.EqualFold(columnNull, "Yes"),
+		}
+		col.ParseType(columnType)
+		e.tables[tableName].Columns = append(e.tables[tableName].Columns, col)
 	}
 }
