@@ -216,7 +216,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 }
 
 // walk on select stmt
-func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) (string, []types.TableColumn, error) {
+func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.Column]*connection.QueryItem) (string, []types.Column, error) {
 	g.walkResultSetNode(node.From.TableRefs, usedTables)
 	// if node.From.TableRefs.Right == nil && node.From.TableRefs.Left != nil {
 	// 	table = s.walkResultSetNode(node.From.TableRefs.Left)
@@ -242,7 +242,7 @@ func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, p
 	return sql, columnInfos, err
 }
 
-func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.TableColumn]interface{}) parser_driver.ValueExpr {
+func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.Column]interface{}) parser_driver.ValueExpr {
 	switch t := e.(type) {
 	case *ast.ParenthesesExpr:
 		return evaluateRow(t.Expr, usedTables, pivotRows)
@@ -269,7 +269,7 @@ func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.Table
 		return r
 	case *ast.ColumnNameExpr:
 		for key, value := range pivotRows {
-			if key.Table+"."+key.Column == t.Name.OrigColName() {
+			if fmt.Sprintf("%s.%s", key.Table, key.Name) == t.Name.OrigColName() {
 				v := parser_driver.ValueExpr{}
 				v.SetValue(value)
 				return v
@@ -293,8 +293,8 @@ func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.Table
 	return v
 }
 
-func Evaluate(whereClause ast.Node, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) parser_driver.ValueExpr {
-	row := map[types.TableColumn]interface{}{}
+func Evaluate(whereClause ast.Node, usedTables []types.Table, pivotRows map[types.Column]*connection.QueryItem) parser_driver.ValueExpr {
+	row := map[types.Column]interface{}{}
 	for key, value := range pivotRows {
 		row[key], _ = getTypedValue(value)
 	}
@@ -331,7 +331,7 @@ func getTypedValue(it *connection.QueryItem) (interface{}, byte) {
 	}
 }
 
-func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) {
+func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.Column]*connection.QueryItem) {
 	out := Evaluate(node.Where, usedTables, pivotRows)
 	pthese := ast.ParenthesesExpr{}
 	pthese.Expr = node.Where
@@ -355,8 +355,8 @@ func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Ta
 	}
 }
 
-func (g *Generator) walkResultFields(node *ast.SelectStmt, usedTables []types.Table) []types.TableColumn {
-	columns := make([]types.TableColumn, 0)
+func (g *Generator) walkResultFields(node *ast.SelectStmt, usedTables []types.Table) []types.Column {
+	columns := make([]types.Column, 0)
 	for _, table := range usedTables {
 		for _, column := range table.Columns {
 			selectField := ast.SelectField{
@@ -368,8 +368,8 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, usedTables []types.Ta
 				},
 			}
 			node.Fields.Fields = append(node.Fields.Fields, &selectField)
-			// better use types.TableColumn{column.Table, column.Name} ?
-			columns = append(columns, types.TableColumn{table.Name.String(), column.Name.String()})
+			// better use types.Column{column.Table, column.Name} ?
+			columns = append(columns, column.Clone())
 		}
 	}
 	return columns

@@ -14,6 +14,7 @@
 package types
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 )
@@ -29,6 +30,24 @@ type Column struct {
 	Type   string
 	Length int
 	Null   bool
+}
+
+func (c Column) String() string {
+	return fmt.Sprintf("%s.%s", c.Table, c.Name)
+}
+
+type Columns []Column
+
+func (c Columns) Len() int {
+	return len(c)
+}
+
+func (c Columns) Less(i, j int) bool {
+	return c[i].String() < c[j].String()
+}
+
+func (c Columns) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
 }
 
 // Clone makes a replica of column

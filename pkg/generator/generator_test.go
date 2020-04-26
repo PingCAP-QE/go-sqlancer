@@ -6,7 +6,6 @@ import (
 	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/model"
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	parserdriver "github.com/pingcap/tidb/types/parser_driver"
 	"github.com/stretchr/testify/require"
@@ -36,11 +35,11 @@ func TestCase1(t *testing.T) {
 	//SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0; -- expected: {1}, actual: {}
 
 	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0"), []Table{{
-		Name:    model.NewCIStr("t0"),
-		Columns: [][3]string{{"c0", "float", "YES"}},
+		Name:    CIStr("t0"),
+		Columns: []Column{{Name: "c0", Type: "float", Null: true}},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Column: "c0"}: 1,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 1,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -50,11 +49,11 @@ func TestCase1(t *testing.T) {
 //	//INSERT INTO t0(c0) VALUES (0);
 //	//SELECT * FROM t0 WHERE t0.c0 = -1; -- expected: {}, actual: {0}
 //	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE t0.c0 = -1"), []Table{{
-//		Name:    model.NewCIStr("t0"),
+//		Name:    CIStr("t0"),
 //		Columns: [][3]string{{"c0", "double unsigned", "YES"}},
 //		Indexes: nil,
-//	}}, map[TableColumn]interface{}{
-//		TableColumn{Table: "t0", Column: "c0"}: 1.0,
+//	}}, map[Column]interface{}{
+//		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 1.0,
 //	})
 //	require.Equal(t, false, isTrueValue(value))
 //}
@@ -64,11 +63,11 @@ func TestCase4(t *testing.T) {
 	//INSERT IGNORE INTO t0(c0) VALUES (NULL);
 	//SELECT * FROM t0 WHERE c0; -- expected: {}, actual: {0}
 	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE t0.c0"), []Table{{
-		Name:    model.NewCIStr("t0"),
-		Columns: [][3]string{{"c0", "NUMERIC", "YES"}},
+		Name:    CIStr("t0"),
+		Columns: []Column{{Name: "c0", Type: "numeric", Null: true}},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Column: "c0"}: 0.0,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 0.0,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -78,11 +77,14 @@ func TestCase6(t *testing.T) {
 	// INSERT INTO t0(c1) VALUES (0), (1);
 	// SELECT * FROM t0; -- connection running loop panic
 	value := evaluateRow(parse(t, "SELECT * FROM t0"), []Table{{
-		Name:    model.NewCIStr("t0"),
-		Columns: [][3]string{{"c0", "CHAR", "YES"}, {"t1", "INT"}},
+		Name: CIStr("t0"),
+		Columns: []Column{
+			{Name: "c0", Type: "char", Null: true},
+			{Name: "t1", Type: "int"},
+		},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Column: "c0"}: "0",
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}: "0",
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -94,12 +96,15 @@ func TestCase8(t *testing.T) {
 	// SELECT /*+ USE_INDEX_MERGE(t0, i0, PRIMARY)*/ t0.c0 FROM t0 WHERE t0.c1 OR t0.c0;
 	// SELECT t0.c0 FROM t0 WHERE t0.c1 OR t0.c0; -- expected: {1}, actual: {NULL}
 	value := evaluateRow(parse(t, "SELECT t0.c0 FROM t0 WHERE t0.c1 OR t0.c0"), []Table{{
-		Name:    model.NewCIStr("t0"),
-		Columns: [][3]string{{"c0", "INT", "YES"}, {"t1", "INT"}},
+		Name: CIStr("t0"),
+		Columns: []Column{
+			{Name: "c0", Type: "int", Null: true},
+			{Name: "t1", Type: "int"},
+		},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Column: "c0"}: 1,
-		TableColumn{Table: "t0", Column: "c1"}: 0,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 1,
+		Column{Table: CIStr("t0"), Name: CIStr("c1")}: 0,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -109,12 +114,15 @@ func TestCase11(t *testing.T) {
 	//CREATE INDEX i0 ON t0(c0);
 	//SELECT /*+ USE_INDEX_MERGE(t0, PRIMARY) */ * FROM t0 WHERE 1 OR t0.c1;
 	value := evaluateRow(parse(t, "SELECT t0.c0 FROM t0 WHERE t0.c1 OR t0.c0"), []Table{{
-		Name:    model.NewCIStr("t0"),
-		Columns: [][3]string{{"c0", "INT", "YES"}, {"t1", "INT"}},
+		Name: CIStr("t0"),
+		Columns: []Column{
+			{Name: "c0", Type: "int", Null: true},
+			{Name: "t1", Type: "int"},
+		},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Column: "c0"}: 1,
-		TableColumn{Table: "t0", Column: "c1"}: 0,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 1,
+		Column{Table: CIStr("t0"), Name: CIStr("c1")}: 0,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -125,11 +133,11 @@ func TestCase12(t *testing.T) {
 	//CREATE INDEX i0 ON t0(c0(10));
 	//SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0; -- expected: {1}, actual: {}
 	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0"), []Table{{
-		Name:    model.NewCIStr("t0"),
-		Columns: [][3]string{{"c0", "TEXT", "YES"}},
+		Name:    CIStr("t0"),
+		Columns: []Column{{Name: "c0", Type: "text", Null: true}},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Column: "c0"}: "1",
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}: "1",
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -139,11 +147,11 @@ func TestCase14(t *testing.T) {
 	//INSERT INTO t0(c0) VALUES (NULL);
 	//SELECT * FROM t0 WHERE NOT(0 OR t0.c0); -- expected: {}, actual: {NULL}
 	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE NOT(0 OR t0.c0)"), []Table{{
-		Name:    model.NewCIStr("t0"),
-		Columns: [][3]string{{"c0", "float", "YES"}},
+		Name:    CIStr("t0"),
+		Columns: []Column{{Name: "c0", Type: "float", Null: true}},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Column: "c0"}: nil,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}: nil,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -154,11 +162,11 @@ func TestCase14(t *testing.T) {
 //	//SELECT t0.c0 FROM t0 WHERE CHAR(204355900); -- expected: {0}, actual: {}
 //
 //	value := evaluateRow(parse(t, "SELECT t0.c0 FROM t0 WHERE CHAR(204355900)"), []Table{{
-//		Name:    model.NewCIStr("t0"),
+//		Name:    CIStr("t0"),
 //		Columns: [][3]string{{"c0", "int", "YES"}},
 //		Indexes: nil,
-//	}}, map[TableColumn]interface{}{
-//		TableColumn{Table: "t0", Column: "c0"}: 0,
+//	}}, map[Column]interface{}{
+//		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 0,
 //	})
 //	require.Equal(t, true, isTrueValue(value))
 //}
@@ -176,16 +184,16 @@ func TestCase16(t *testing.T) {
 //	// INSERT INTO t0(c0) VALUES (0);
 //	// SELECT t1.c0 FROM t1, t0 WHERE t0.c0=-t1.c0; -- expected: {0}, actual: {}
 //	value := evaluateRow(parse(t, "SELECT t1.c0 FROM t1, t0 WHERE t0.c0=-t1.c0"), []Table{{
-//		Name:    model.NewCIStr("t0"),
+//		Name:    CIStr("t0"),
 //		Columns: [][3]string{{"c0", "float", "YES"}},
 //		Indexes: nil,
 //	}, {
-//		Name:    model.NewCIStr("t1"),
+//		Name:    CIStr("t1"),
 //		Columns: [][3]string{{"c0", "float", "YES"}},
 //		Indexes: nil,
-//	}}, map[TableColumn]interface{}{
-//		TableColumn{Table: "t0", Column: "c0"}: 0.0,
-//		TableColumn{Table: "t1", Column: "c0"}: 0.0,
+//	}}, map[Column]interface{}{
+//		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 0.0,
+//		Column{Table: CIStr("t1"), Name: CIStr("c0")}: 0.0,
 //	})
 //	require.Equal(t, true, isTrueValue(value))
 //}
@@ -195,11 +203,11 @@ func TestCase29(t *testing.T) {
 	//INSERT INTO t0 VALUES (0);
 	//SELECT * FROM t0 WHERE 1 AND 0.4; -- expected: {0}, actual: {}
 	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE 1 AND 0.4"), []Table{{
-		Name:    model.NewCIStr("t0"),
-		Columns: [][3]string{{"c0", "bool", "YES"}},
+		Name:    CIStr("t0"),
+		Columns: []Column{{Name: "c0", Type: "bool", Null: true}},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Column: "c0"}: false,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}: false,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -216,34 +224,37 @@ func TestCase31(t *testing.T) {
 	//SELECT t0.c0 FROM t0 WHERE (NOT NOT t0.c0) = t0.c0; -- expected: {}, actual: {2}
 
 	value := evaluateRow(parse(t, "SELECT t0.c0 FROM t0 WHERE (NOT NOT t0.c0) = t0.c0"), []Table{{
-		Name:    model.NewCIStr("t0"),
-		Columns: [][3]string{{"c0", "int", "YES"}},
+		Name:    CIStr("t0"),
+		Columns: []Column{{Name: "c0", Type: "int", Null: true}},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Column: "c0"}: 2,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 2,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
 
 func TestCase_s01(t *testing.T) {
 	value := evaluateRow(parse(t, "SELECT table_int_varchar_text.id,table_int_varchar_text.col_int,table_int_varchar_text.col_varchar,table_int_varchar_text.col_text,table_int_text.id,table_int_text.col_int,table_int_text.col_text FROM table_int_varchar_text JOIN table_int_text WHERE ((table_int_varchar_text.col_varchar!=-1) AND (table_int_varchar_text.col_text>=0e+00))"), []Table{{
-		Name:    model.NewCIStr("table_int_varchar_text"),
-		Columns: [][3]string{{"col_varchar", "varchar", "YES"}, {"col_text", "text", "YES"}},
+		Name: CIStr("table_int_varchar_text"),
+		Columns: []Column{
+			{Name: "col_varchar", Type: "varchar", Null: true},
+			{Name: "col_text", Type: "text", Null: true},
+		},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "table_int_varchar_text", Column: "col_varchar"}: 0,
-		TableColumn{Table: "table_int_varchar_text", Column: "col_text"}:    nil,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_varchar")}: 0,
+		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_text")}:    nil,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
 
 func TestCase_s02(t *testing.T) {
 	value := evaluateRow(parse(t, "select * from t0 where !null is NULL"), []Table{{
-		Name:    model.NewCIStr("t0"),
-		Columns: [][3]string{{"c0", "int", "YES"}},
+		Name:    CIStr("t0"),
+		Columns: []Column{{Name: "c0", Type: "int", Null: true}},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "t0", Column: "c0"}: 2,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 2,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -261,12 +272,15 @@ WHERE (((!table_int_varchar_float_text.id) XOR (-1
                                                 AND table_int_varchar_float_text.col_float)))
 
 `), []Table{{
-		Name:    model.NewCIStr("table_int_varchar_float_text"),
-		Columns: [][3]string{{"id", "int", "YES"}, {"col_int", "int", "YES"}},
+		Name: CIStr("table_int_varchar_float_text"),
+		Columns: []Column{
+			{Name: "id", Type: "int", Null: true},
+			{Name: "col_int", Type: "int", Null: true},
+		},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "table_int_varchar_float_text", Column: "id"}:        5,
-		TableColumn{Table: "table_int_varchar_float_text", Column: "col_float"}: nil,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("table_inCIStrt_varchar_float_text"), Name: CIStr("id")}:   5,
+		Column{Table: CIStr("table_int_varchar_float_text"), Name: CIStr("col_float")}: nil,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -289,28 +303,28 @@ FROM table_varchar_float_text
 JOIN table_int
 WHERE !((table_varchar_float_text.col_float XOR 15))
 `), []Table{{
-		Name: model.NewCIStr("table_varchar_float_text"),
-		Columns: [][3]string{
-			{"id", "int", "YES"},
-			{"col_varchar", "varchar", "YES"},
-			{"col_float", "float", "YES"},
-			{"col_text", "text", "YES"},
+		Name: CIStr("table_varchar_float_text"),
+		Columns: []Column{
+			{Name: "id", Type: "int", Null: true},
+			{Name: "col_varchar", Type: "varchar", Null: true},
+			{Name: "col_float", Type: "float", Null: true},
+			{Name: "col_text", Type: "text", Null: true},
 		},
 		Indexes: nil,
 	}, {
-		Name: model.NewCIStr("table_int"),
-		Columns: [][3]string{
-			{"id", "int", "YES"},
-			{"col_int", "int", "YES"},
+		Name: CIStr("table_int"),
+		Columns: []Column{
+			{Name: "id", Type: "int", Null: true},
+			{Name: "col_int", Type: "int", Null: true},
 		},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "table_varchar_float_text", Column: "id"}:          15,
-		TableColumn{Table: "table_varchar_float_text", Column: "col_varchar"}: true,
-		TableColumn{Table: "table_varchar_float_text", Column: "col_float"}:   -0.1,
-		TableColumn{Table: "table_varchar_float_text", Column: "col_text"}:    -1,
-		TableColumn{Table: "table_int", Column: "id"}:                         9,
-		TableColumn{Table: "table_int", Column: "col_int"}:                    1,
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("id")}:          15,
+		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_varchar")}: true,
+		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_float")}:   -0.1,
+		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_text")}:    -1,
+		Column{Table: CIStr("table_int"), Name: CIStr("id")}:                         9,
+		Column{Table: CIStr("table_int"), Name: CIStr("col_int")}:                    1,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -340,15 +354,15 @@ FROM (table_int_varchar_text
 JOIN table_int
 WHERE ((table_int_varchar_text.id XOR 4.0631823313220344e-01) XOR (!table_int_varchar_text.col_text))
 `), []Table{{
-		Name: model.NewCIStr("table_int_varchar_text"),
-		Columns: [][3]string{
-			{"id", "int", "YES"},
-			{"col_text", "text", "YES"},
+		Name: CIStr("table_int_varchar_text"),
+		Columns: []Column{
+			{Name: "id", Type: "int", Null: true},
+			{Name: "col_text", Type: "text", Null: true},
 		},
 		Indexes: nil,
-	}}, map[TableColumn]interface{}{
-		TableColumn{Table: "table_int_varchar_text", Column: "id"}:       8,
-		TableColumn{Table: "table_int_varchar_text", Column: "col_text"}: "0",
+	}}, map[Column]interface{}{
+		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("id")}:       8,
+		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_text")}: "0",
 	})
 	require.Equal(t, true, isTrueValue(value))
 }

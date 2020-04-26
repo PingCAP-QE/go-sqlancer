@@ -235,8 +235,8 @@ func (p *Pivot) progress(ctx context.Context) {
 
 // ChoosePivotedRow choose a row
 // it may move to another struct
-func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Table, error) {
-	result := make(map[TableColumn]*connection.QueryItem)
+func (p *Pivot) ChoosePivotedRow() (map[Column]*connection.QueryItem, []Table, error) {
+	result := make(map[Column]*connection.QueryItem)
 	count := 1
 	if len(p.Tables) > 1 {
 		// avoid too deep joins
@@ -257,7 +257,7 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 		if len(exeRes) > 0 {
 			for _, c := range exeRes[0] {
 				// panic(fmt.Sprintf("no rows in table %s", i.Column))
-				tableColumn := TableColumn{i.Name.String(), c.ValType.Name()}
+				tableColumn := Column{Table: i.Name, Name: CIStr(c.ValType.Name())}
 				result[tableColumn] = c
 			}
 			reallyUsed = append(reallyUsed, i)
@@ -267,7 +267,7 @@ func (p *Pivot) ChoosePivotedRow() (map[TableColumn]*connection.QueryItem, []Tab
 	return result, reallyUsed, nil
 }
 
-func (p *Pivot) GenSelectStmt(pivotRows map[TableColumn]*connection.QueryItem, usedTables []Table) (*ast.SelectStmt, string, []TableColumn, error) {
+func (p *Pivot) GenSelectStmt(pivotRows map[Column]*connection.QueryItem, usedTables []Table) (*ast.SelectStmt, string, []Column, error) {
 	stmtAst, err := p.SelectStmtAst(p.Conf.Depth, usedTables)
 	if err != nil {
 		return nil, "", nil, err
@@ -279,7 +279,7 @@ func (p *Pivot) GenSelectStmt(pivotRows map[TableColumn]*connection.QueryItem, u
 	return &stmtAst, sql, columns, nil
 }
 
-func (p *Pivot) ExecAndVerify(stmt *ast.SelectStmt, originRow map[TableColumn]*connection.QueryItem, columns []TableColumn) (bool, error) {
+func (p *Pivot) ExecAndVerify(stmt *ast.SelectStmt, originRow map[Column]*connection.QueryItem, columns []Column) (bool, error) {
 	sql, err := BufferOut(stmt)
 	if err != nil {
 		return false, err
@@ -300,7 +300,7 @@ func (p *Pivot) execSelect(stmt string) ([][]*connection.QueryItem, error) {
 	return p.Executor.GetConn().Select(stmt)
 }
 
-func (p *Pivot) verify(originRow map[TableColumn]*connection.QueryItem, columns []TableColumn, resultSets [][]*connection.QueryItem) bool {
+func (p *Pivot) verify(originRow map[Column]*connection.QueryItem, columns []Column, resultSets [][]*connection.QueryItem) bool {
 	for _, row := range resultSets {
 		if p.checkRow(originRow, columns, row) {
 			return true
@@ -315,13 +315,13 @@ func (p *Pivot) verify(originRow map[TableColumn]*connection.QueryItem, columns 
 
 		fmt.Println("  =========  COLUMNS ======")
 		for _, c := range columns {
-			fmt.Printf("  Table: %s, Column: %s\n", c.Table, c.Column)
+			fmt.Printf("  Table: %s, Column: %s\n", c.Table, c.Name)
 		}
 	}
 	return false
 }
 
-func (p *Pivot) checkRow(originRow map[TableColumn]*connection.QueryItem, columns []TableColumn, resultSet []*connection.QueryItem) bool {
+func (p *Pivot) checkRow(originRow map[Column]*connection.QueryItem, columns []Column, resultSet []*connection.QueryItem) bool {
 	for i, c := range columns {
 		// fmt.Printf("i: %d, column: %+v, left: %+v, right: %+v", i, c, originRow[c], resultSet[i])
 		if !compareQueryItem(originRow[c], resultSet[i]) {
@@ -331,7 +331,7 @@ func (p *Pivot) checkRow(originRow map[TableColumn]*connection.QueryItem, column
 	return true
 }
 
-func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[TableColumn]*connection.QueryItem, usedTable []Table, columns []TableColumn) (string, error) {
+func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[Column]*connection.QueryItem, usedTable []Table, columns []Column) (string, error) {
 	selectStmt := p.minifySubquery(stmt, stmt.Where, usedTable, pivotRows, columns)
 	// for those ast that we don't try to simplify
 	if selectStmt == nil {
@@ -363,7 +363,7 @@ func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[TableColumn]*co
 	return sql, nil
 }
 
-func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Table, pivotRows map[TableColumn]*connection.QueryItem, columns []TableColumn) *ast.SelectStmt {
+func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Table, pivotRows map[Column]*connection.QueryItem, columns []Column) *ast.SelectStmt {
 	switch t := e.(type) {
 	case *ast.ParenthesesExpr:
 		result := p.minifySubquery(stmt, t.Expr, usedTable, pivotRows, columns)
@@ -422,7 +422,7 @@ func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Tab
 	}
 }
 
-func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[TableColumn]*connection.QueryItem, exist bool) bool {
+func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[Column]*connection.QueryItem, exist bool) bool {
 	where := sel.Where
 	out := generator.Evaluate(where, usedTables, pivotRows)
 
@@ -441,8 +441,8 @@ func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRo
 	}
 }
 
-func (p *Pivot) printPivotRows(pivotRows map[TableColumn]*connection.QueryItem) {
-	var tableColumns TableColumns
+func (p *Pivot) printPivotRows(pivotRows map[Column]*connection.QueryItem) {
+	var tableColumns Columns
 	for column := range pivotRows {
 		tableColumns = append(tableColumns, column)
 	}
@@ -450,7 +450,7 @@ func (p *Pivot) printPivotRows(pivotRows map[TableColumn]*connection.QueryItem) 
 	sort.Sort(tableColumns)
 	for _, column := range tableColumns {
 		value := pivotRows[column]
-		fmt.Printf("%s.%s=%s\n", column.Table, column.Column, value.String())
+		fmt.Printf("%s.%s=%s\n", column.Table, column.Name, value.String())
 	}
 }
 
