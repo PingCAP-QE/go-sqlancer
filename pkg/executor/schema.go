@@ -2,10 +2,10 @@ package executor
 
 import (
 	"regexp"
+	"strings"
 
 	"github.com/juju/errors"
 	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/model"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 )
@@ -24,7 +24,7 @@ func (e *Executor) reloadSchema() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	indexes := make(map[string][]model.CIStr)
+	indexes := make(map[string][]types.CIStr)
 	for _, col := range schema {
 		if _, ok := indexes[col[2]]; ok {
 			continue
@@ -35,9 +35,9 @@ func (e *Executor) reloadSchema() error {
 		if err != nil {
 			return errors.Trace(err)
 		}
-		var modelIndex []model.CIStr
+		var modelIndex []types.CIStr
 		for _, indexName := range index {
-			modelIndex = append(modelIndex, model.NewCIStr(indexName))
+			modelIndex = append(modelIndex, types.CIStr(indexName))
 		}
 		indexes[col[1]] = modelIndex
 	}
@@ -46,7 +46,7 @@ func (e *Executor) reloadSchema() error {
 	return nil
 }
 
-func (e *Executor) loadSchema(records [][6]string, indexes map[string][]model.CIStr) {
+func (e *Executor) loadSchema(records [][6]string, indexes map[string][]types.CIStr) {
 	// init databases
 LOOP:
 	for _, record := range records {
@@ -65,25 +65,32 @@ LOOP:
 		}
 		index, ok := indexes[tableName]
 		if !ok {
-			index = []model.CIStr{}
+			index = []types.CIStr{}
 		}
 		if _, ok := e.tables[tableName]; !ok {
 			e.tables[tableName] = &types.Table{
-				Name:    model.NewCIStr(tableName),
-				Columns: [][3]string{},
+				Name:    types.CIStr(tableName),
+				Columns: []types.Column{},
 				Indexes: index,
 				Type:    tableType,
 			}
 		}
 
 		for index, column := range e.tables[tableName].Columns {
-			if column[0] == columnName {
-				e.tables[tableName].Columns[index][1] = columnType
-				e.tables[tableName].Columns[index][2] = columnNull
+			if column.Name.EqString(columnName) {
+				e.tables[tableName].Columns[index].Type = columnType
+				e.tables[tableName].Columns[index].Null = strings.EqualFold(columnNull, "Yes")
 				continue LOOP
 			}
 		}
-		e.tables[tableName].Columns = append(e.tables[tableName].Columns,
-			[3]string{columnName, columnType, columnNull})
+		e.tables[tableName].Columns = append(e.tables[tableName].Columns, types.Column{
+			// columnName, columnType, columnNull
+			Table: types.CIStr(tableName),
+			Name:  types.CIStr(columnName),
+			Type:  columnType,
+			// FIXME: parse length from columnType
+			Length: 10,
+			Null:   strings.EqualFold(columnNull, "Yes"),
+		})
 	}
 }

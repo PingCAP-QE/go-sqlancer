@@ -12,7 +12,6 @@ import (
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 
 	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/parser/opcode"
 	parser_types "github.com/pingcap/parser/types"
@@ -195,9 +194,9 @@ func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
 
 func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNameExpr {
 	randTable := usedTables[Rd(len(usedTables))]
-	tempCols := make([][3]string, 0)
+	tempCols := make([]types.Column, 0)
 	for i := range randTable.Columns {
-		if TransStringType(randTable.Columns[i][1])&arg != 0 {
+		if TransStringType(randTable.Columns[i].Type)&arg != 0 {
 			tempCols = append(tempCols, randTable.Columns[i])
 		}
 	}
@@ -205,11 +204,11 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 		panic(fmt.Sprintf("no valid column as arg %d", arg))
 	}
 	randColumn := tempCols[Rd(len(tempCols))]
-	colName, typeStr := randColumn[0], randColumn[1]
+	colName, typeStr := randColumn.Name, randColumn.Type
 	col := new(ast.ColumnNameExpr)
 	col.Name = &ast.ColumnName{
-		Table: randTable.Name,
-		Name:  model.NewCIStr(colName),
+		Table: randTable.Name.ToModel(),
+		Name:  colName.ToModel(),
 	}
 	col.Type = parser_types.FieldType{}
 	col.SetType(tidb_types.NewFieldType(TransToMysqlType(TransStringType(typeStr))))
@@ -363,13 +362,14 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, usedTables []types.Ta
 			selectField := ast.SelectField{
 				Expr: &ast.ColumnNameExpr{
 					Name: &ast.ColumnName{
-						Table: table.Name,
-						Name:  model.NewCIStr(column[0]),
+						Table: table.Name.ToModel(),
+						Name:  column.Name.ToModel(),
 					},
 				},
 			}
 			node.Fields.Fields = append(node.Fields.Fields, &selectField)
-			columns = append(columns, types.TableColumn{table.Name.O, column[0]})
+			// better use types.TableColumn{column.Table, column.Name} ?
+			columns = append(columns, types.TableColumn{table.Name.String(), column.Name.String()})
 		}
 	}
 	return columns
@@ -382,7 +382,7 @@ func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) 
 	if l == 1 {
 		ts := ast.TableSource{}
 		tn := ast.TableName{}
-		tn.Name = usedTables[0].Name
+		tn.Name = usedTables[0].Name.ToModel()
 		ts.Source = &tn
 		node.Left = &ts
 		node.Right = nil
@@ -390,7 +390,7 @@ func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) 
 	for i := l - 1; i >= 1; i-- {
 		ts := ast.TableSource{}
 		tn := ast.TableName{}
-		tn.Name = usedTables[i].Name
+		tn.Name = usedTables[i].Name.ToModel()
 		ts.Source = &tn
 		if i > 1 {
 			left.Right = &ts
@@ -400,7 +400,7 @@ func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) 
 			left.Right = &ts
 			ts2 := ast.TableSource{}
 			tn2 := ast.TableName{}
-			tn2.Name = usedTables[i-1].Name
+			tn2.Name = usedTables[i-1].Name.ToModel()
 			ts2.Source = &tn2
 			left.Left = &ts2
 		}

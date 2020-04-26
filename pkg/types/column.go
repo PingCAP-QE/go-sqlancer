@@ -13,54 +13,42 @@
 
 package types
 
-import "github.com/pingcap/parser/ast"
-
 // Column defines database column
 type Column struct {
-	DB           string
-	Table        string
-	OriginTable  string
-	Column       string
-	OriginColumn string
-	DataType     string
-	DataLen      int
-	Func         bool
-	NewFunc      bool
-	Options      []ast.ColumnOptionType
+	Table  CIStr
+	Name   CIStr
+	Type   string
+	Length int
+	Null   bool
 }
 
 // Clone makes a replica of column
-func (c *Column) Clone() *Column {
-	return &Column{
-		DB:           c.DB,
-		Table:        c.Table,
-		OriginTable:  c.OriginTable,
-		Column:       c.Column,
-		OriginColumn: c.OriginColumn,
-		DataType:     c.DataType,
-		DataLen:      c.DataLen,
-		Func:         c.Func,
-		NewFunc:      c.NewFunc,
-		Options:      c.Options,
+func (c *Column) Clone() Column {
+	return Column{
+		Table:  c.Table,
+		Name:   c.Name,
+		Type:   c.Type,
+		Length: c.Length,
+		Null:   c.Null,
 	}
 }
 
 // AddOption add option for column
-func (c *Column) AddOption(opt ast.ColumnOptionType) {
-	for _, option := range c.Options {
-		if option == opt {
-			return
-		}
-	}
-	c.Options = append(c.Options, opt)
-}
+// func (c *Column) AddOption(opt ast.ColumnOptionType) {
+// 	for _, option := range c.Options {
+// 		if option == opt {
+// 			return
+// 		}
+// 	}
+// 	c.Options = append(c.Options, opt)
+// }
 
-// HasOption return is has the given option
-func (c *Column) HasOption(opt ast.ColumnOptionType) bool {
-	for _, option := range c.Options {
-		if option == opt {
-			return true
-		}
-	}
-	return false
-}
+// // HasOption return is has the given option
+// func (c *Column) HasOption(opt ast.ColumnOptionType) bool {
+// 	for _, option := range c.Options {
+// 		if option == opt {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
