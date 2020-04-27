@@ -421,6 +421,9 @@ func (g *Generator) tableHintsExpr(usedTables []types.Table) []*ast.TableOptimiz
 	length := Rd(4)
 	for i := 0; i < length; i++ {
 		to := hint.GenerateHintExpr(usedTables)
+		if to == nil {
+			continue
+		}
 		if _, ok := enabledHints[to.HintName.String()]; !ok {
 			hints = append(hints, to)
 			enabledHints[to.HintName.String()] = true
