@@ -46,11 +46,13 @@ func NewPivot(conf *Config) (*Pivot, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Pivot{
+	p := Pivot{
 		Conf:      conf,
 		Executor:  e,
 		Generator: generator.Generator{},
-	}, nil
+	}
+	p.Generator.Hint = conf.Hint
+	return &p, nil
 }
 
 const (

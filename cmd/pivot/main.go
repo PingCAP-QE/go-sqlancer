@@ -17,6 +17,7 @@ const (
 	sqlDepth    = "depth"
 	silentMode  = "silent"
 	nmDebug     = "debug"
+	nmHint      = "hint"
 )
 
 var (
@@ -27,6 +28,7 @@ var (
 	depth     = flag.Int(sqlDepth, 1, "sql depth")
 	silent    = flag.Bool(silentMode, false, "silent when verify failed")
 	debug     = flag.Bool(nmDebug, false, "enable debug output")
+	hint      = flag.Bool(nmHint, true, "enable sql hint for TiDB")
 )
 
 func main() {
@@ -72,5 +74,8 @@ func loadConfig() {
 	}
 	if actualFlags[nmDebug] {
 		conf.Debug = *debug
+	}
+	if actualFlags[nmHint] {
+		conf.Hint = *hint
 	}
 }
