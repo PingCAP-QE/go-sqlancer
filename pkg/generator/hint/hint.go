@@ -3,6 +3,7 @@ package hint
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/chaos-mesh/go-sqlancer/pkg/util"
@@ -139,10 +140,20 @@ func GenerateHintExpr(usedTables []types.Table) (h *ast.TableOptimizerHint) {
 			h = nil
 			return
 		}
-		h.Tables = append(h.Tables, shuffledTables[util.Rd(len(shuffledTables))])
 		n := util.MinInt(util.Rd(4)+1, len(shuffledIndexes)) // avoid case n == 0
 		for ; n > 0; n-- {
-			h.Indexes = append(h.Indexes, shuffledIndexes[n-1])
+			idx := shuffledIndexes[n-1]
+			tb := strings.Split(idx.String(), ".")[0]
+			h.Indexes = append(h.Indexes, idx)
+			for _, t := range h.Tables {
+				if t.TableName.String() == tb {
+					goto NEXT_INDEX
+				}
+			}
+			h.Tables = append(h.Tables, ast.HintTable{
+				TableName: model.NewCIStr(tb),
+			})
+		NEXT_INDEX:
 		}
 	default:
 		panic(fmt.Sprintf("unreachable hintKeyword.name:%s", hintKeyword.name))
