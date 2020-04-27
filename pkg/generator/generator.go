@@ -216,7 +216,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 }
 
 // walk on select stmt
-func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.Column]*connection.QueryItem) (string, []types.Column, error) {
+func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) (string, []types.Column, error) {
 	g.walkResultSetNode(node.From.TableRefs, usedTables)
 	// if node.From.TableRefs.Right == nil && node.From.TableRefs.Left != nil {
 	// 	table = s.walkResultSetNode(node.From.TableRefs.Left)
@@ -242,7 +242,7 @@ func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, p
 	return sql, columnInfos, err
 }
 
-func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.Column]interface{}) parser_driver.ValueExpr {
+func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[string]interface{}) parser_driver.ValueExpr {
 	switch t := e.(type) {
 	case *ast.ParenthesesExpr:
 		return evaluateRow(t.Expr, usedTables, pivotRows)
@@ -269,7 +269,7 @@ func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.Colum
 		return r
 	case *ast.ColumnNameExpr:
 		for key, value := range pivotRows {
-			if fmt.Sprintf("%s.%s", key.Table, key.Name) == t.Name.OrigColName() {
+			if key == t.Name.OrigColName() {
 				v := parser_driver.ValueExpr{}
 				v.SetValue(value)
 				return v
@@ -293,8 +293,8 @@ func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.Colum
 	return v
 }
 
-func Evaluate(whereClause ast.Node, usedTables []types.Table, pivotRows map[types.Column]*connection.QueryItem) parser_driver.ValueExpr {
-	row := map[types.Column]interface{}{}
+func Evaluate(whereClause ast.Node, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) parser_driver.ValueExpr {
+	row := map[string]interface{}{}
 	for key, value := range pivotRows {
 		row[key], _ = getTypedValue(value)
 	}
@@ -331,7 +331,7 @@ func getTypedValue(it *connection.QueryItem) (interface{}, byte) {
 	}
 }
 
-func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.Column]*connection.QueryItem) {
+func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) {
 	out := Evaluate(node.Where, usedTables, pivotRows)
 	pthese := ast.ParenthesesExpr{}
 	pthese.Expr = node.Where
