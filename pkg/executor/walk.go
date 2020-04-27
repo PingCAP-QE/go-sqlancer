@@ -89,7 +89,10 @@ func (e *Executor) walkDDLCreateIndex(node *ast.CreateIndexStmt) (string, error)
 			// 	maxLen := util.MinInt(column.DataLen, 32)
 			// 	length = util.Rd(maxLen-1) + 1
 			// }
-			length := column.Length
+			length := 1
+			if column.Length > 1 {
+				length = column.Length
+			}
 			name = fmt.Sprintf("%s(%d)", name, length)
 		}
 		node.IndexPartSpecifications = append(node.IndexPartSpecifications,
