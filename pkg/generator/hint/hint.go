@@ -3,7 +3,6 @@ package hint
 import (
 	"fmt"
 	"math/rand"
-	"strings"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/chaos-mesh/go-sqlancer/pkg/util"
@@ -72,13 +71,16 @@ var disabledHintKeywords = []*hintClass{
 
 func GenerateHintExpr(usedTables []types.Table) (h *ast.TableOptimizerHint) {
 	enabledKeywords := hintKeywords
-	mergedIndexes := make([]string, 0)
+	tableHasIndex := make(map[string][]string)
 	for _, t := range usedTables {
 		for _, i := range t.Indexes {
-			mergedIndexes = append(mergedIndexes, t.Name.String()+"."+i.String())
+			if tableHasIndex[t.Name.String()] == nil {
+				tableHasIndex[t.Name.String()] = make([]string, 0)
+			}
+			tableHasIndex[t.Name.String()] = append(tableHasIndex[t.Name.String()], t.Name.String()+"."+i.String())
 		}
 	}
-	if len(mergedIndexes) > 0 {
+	if len(tableHasIndex) > 0 {
 		enabledKeywords = append(enabledKeywords, indexHintKeywords...)
 	}
 	h = new(ast.TableOptimizerHint)
@@ -113,15 +115,15 @@ func GenerateHintExpr(usedTables []types.Table) (h *ast.TableOptimizerHint) {
 		shuffledTables[i], shuffledTables[j] = shuffledTables[j], shuffledTables[i]
 	})
 
-	shuffledIndexes := make([]model.CIStr, 0)
-	for _, idx := range mergedIndexes {
-		if idx != "" {
-			shuffledIndexes = append(shuffledIndexes, model.NewCIStr(idx))
-		}
-	}
-	rand.Shuffle(len(shuffledIndexes), func(i, j int) {
-		shuffledIndexes[i], shuffledIndexes[j] = shuffledIndexes[j], shuffledIndexes[i]
-	})
+	// shuffledIndexes := make([]model.CIStr, 0)
+	// for _, idx := range mergedIndexes {
+	// 	if idx != "" {
+	// 		shuffledIndexes = append(shuffledIndexes, model.NewCIStr(idx))
+	// 	}
+	// }
+	// rand.Shuffle(len(shuffledIndexes), func(i, j int) {
+	// 	shuffledIndexes[i], shuffledIndexes[j] = shuffledIndexes[j], shuffledIndexes[i]
+	// })
 
 	switch hintKeyword.name {
 	case "hash_join", "merge_join", "inl_join", "inl_hash_join", "inl_merge_join":
@@ -136,25 +138,30 @@ func GenerateHintExpr(usedTables []types.Table) (h *ast.TableOptimizerHint) {
 		}
 	case "use_index", "ignore_index", "use_index_merge":
 		// if no table nor index return empty
-		if len(shuffledTables) == 0 || len(shuffledIndexes) == 0 {
+		if len(tableHasIndex) == 0 {
 			h = nil
 			return
 		}
-		n := util.MinInt(util.Rd(4)+1, len(shuffledIndexes)) // avoid case n == 0
-		for ; n > 0; n-- {
-			idx := shuffledIndexes[n-1]
-			tb := strings.Split(idx.String(), ".")[0]
-			h.Indexes = append(h.Indexes, idx)
-			for _, t := range h.Tables {
-				if t.TableName.String() == tb {
-					goto NEXT_INDEX
-				}
+		n := util.Rd(len(tableHasIndex))
+		var tb string
+		var indexes []string
+		for tb, indexes = range tableHasIndex {
+			if n <= 0 {
+				break
 			}
-			h.Tables = append(h.Tables, ast.HintTable{
-				TableName: model.NewCIStr(tb),
-			})
-		NEXT_INDEX:
+			n--
 		}
+		rand.Shuffle(len(indexes), func(i, j int) {
+			indexes[i], indexes[j] = indexes[j], indexes[i]
+		})
+		n = util.MinInt(util.Rd(4)+1, len(indexes)) // avoid case n == 0
+		for ; n > 0; n-- {
+			idx := indexes[n-1]
+			h.Indexes = append(h.Indexes, model.NewCIStr(idx))
+		}
+		h.Tables = append(h.Tables, ast.HintTable{
+			TableName: model.NewCIStr(tb),
+		})
 	default:
 		panic(fmt.Sprintf("unreachable hintKeyword.name:%s", hintKeyword.name))
 	}
