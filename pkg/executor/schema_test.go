@@ -73,7 +73,7 @@ var (
 		{"community", "users", "BASE TABLE", "team_id", "int(11)", "NO"},
 	}
 	dbname  = "community"
-	indexes = make(map[string][]string)
+	indexes = make(map[string][]types.CIStr)
 	tables  = []string{"comments", "picks", "pulls", "tasks", "teams", "users"}
 )
 
@@ -84,7 +84,7 @@ func TestSQLSmith_LoadIndexes(t *testing.T) {
 		db:     dbname,
 		tables: make(map[string]*types.Table),
 	}
-	indexes["users"] = []string{"idx1", "idx2"}
+	indexes["users"] = []types.CIStr{"idx1", "idx2"}
 	e.loadSchema(schema, indexes)
 
 	assert.Equal(t, len(e.tables), 6)

@@ -85,7 +85,7 @@ func (c *Connection) FetchSchema(db string) ([][6]string, error) {
 	for tables.Next() {
 		var schemaName, tableName, tableType string
 		if err = tables.Scan(&schemaName, &tableName, &tableType); err != nil {
-			return [][6]string{}, errors.Trace(err)
+			return nil, errors.Trace(err)
 		}
 		// do not generate SQL about sync table
 		// because this can not be reproduced from logs

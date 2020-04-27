@@ -13,54 +13,87 @@
 
 package types
 
-import "github.com/pingcap/parser/ast"
+import (
+	"fmt"
+	"regexp"
+	"strconv"
+)
+
+var (
+	typePattern = regexp.MustCompile(`([a-z]*)\(?([0-9]*)\)?`)
+)
 
 // Column defines database column
 type Column struct {
-	DB           string
-	Table        string
-	OriginTable  string
-	Column       string
-	OriginColumn string
-	DataType     string
-	DataLen      int
-	Func         bool
-	NewFunc      bool
-	Options      []ast.ColumnOptionType
+	Table  CIStr
+	Name   CIStr
+	Type   string
+	Length int
+	Null   bool
+}
+
+func (c Column) String() string {
+	return fmt.Sprintf("%s.%s", c.Table, c.Name)
+}
+
+type Columns []Column
+
+func (c Columns) Len() int {
+	return len(c)
+}
+
+func (c Columns) Less(i, j int) bool {
+	return c[i].String() < c[j].String()
+}
+
+func (c Columns) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
 }
 
 // Clone makes a replica of column
-func (c *Column) Clone() *Column {
-	return &Column{
-		DB:           c.DB,
-		Table:        c.Table,
-		OriginTable:  c.OriginTable,
-		Column:       c.Column,
-		OriginColumn: c.OriginColumn,
-		DataType:     c.DataType,
-		DataLen:      c.DataLen,
-		Func:         c.Func,
-		NewFunc:      c.NewFunc,
-		Options:      c.Options,
+func (c *Column) Clone() Column {
+	return Column{
+		Table:  c.Table,
+		Name:   c.Name,
+		Type:   c.Type,
+		Length: c.Length,
+		Null:   c.Null,
+	}
+}
+
+// ParseType parse types and data length
+func (c *Column) ParseType(t string) {
+	matches := typePattern.FindStringSubmatch(t)
+	if len(matches) != 3 {
+		return
+	}
+	c.Type = matches[1]
+	if matches[2] != "" {
+		l, err := strconv.Atoi(matches[2])
+		if err == nil {
+			c.Length = l
+		}
+	} else {
+		c.Length = 0
 	}
 }
 
 // AddOption add option for column
-func (c *Column) AddOption(opt ast.ColumnOptionType) {
-	for _, option := range c.Options {
-		if option == opt {
-			return
-		}
-	}
-	c.Options = append(c.Options, opt)
-}
+// func (c *Column) AddOption(opt ast.ColumnOptionType) {
+// 	for _, option := range c.Options {
+// 		if option == opt {
+// 			return
+// 		}
+// 	}
+// 	c.Options = append(c.Options, opt)
+// }
 
-// HasOption return is has the given option
-func (c *Column) HasOption(opt ast.ColumnOptionType) bool {
-	for _, option := range c.Options {
-		if option == opt {
-			return true
-		}
-	}
-	return false
-}
+// // HasOption return is has the given option
+// func (c *Column) HasOption(opt ast.ColumnOptionType) bool {
+// 	for _, option := range c.Options {
+// 		if option == opt {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }

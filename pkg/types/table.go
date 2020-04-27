@@ -2,15 +2,13 @@ package types
 
 import (
 	"math/rand"
-
-	"github.com/pingcap/parser/model"
 )
 
 // Table defines database table
 type Table struct {
-	Name    model.CIStr
-	Columns [][3]string
-	Indexes []model.CIStr
+	Name    CIStr
+	Columns []Column
+	Indexes []CIStr
 	Type    string
 }
 
@@ -18,19 +16,18 @@ type Table struct {
 func (t *Table) Clone() *Table {
 	newTable := Table{
 		Name:    t.Name,
-		Columns: make([][3]string, len(t.Columns)),
+		Columns: make([]Column, len(t.Columns)),
 		Indexes: t.Indexes,
 		Type:    t.Type,
 	}
-	for k := range t.Columns {
-		cloneColumn := t.Columns[k]
-		newTable.Columns[k] = cloneColumn
+	for i, column := range t.Columns {
+		newTable.Columns[i] = column.Clone()
 	}
 	return &newTable
 }
 
 // RandColumn rand column from table
-func (t *Table) RandColumn() [3]string {
+func (t *Table) RandColumn() Column {
 	if len(t.Columns) == 0 {
 		panic("no columns in table")
 	}
@@ -38,6 +35,6 @@ func (t *Table) RandColumn() [3]string {
 }
 
 // GetColumns get ordered columns
-func (t *Table) GetColumns() [][3]string {
+func (t *Table) GetColumns() []Column {
 	return t.Columns
 }

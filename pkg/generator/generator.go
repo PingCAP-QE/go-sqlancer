@@ -12,7 +12,6 @@ import (
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 
 	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/parser/opcode"
 	parser_types "github.com/pingcap/parser/types"
@@ -195,9 +194,9 @@ func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
 
 func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNameExpr {
 	randTable := usedTables[Rd(len(usedTables))]
-	tempCols := make([][3]string, 0)
+	tempCols := make([]types.Column, 0)
 	for i := range randTable.Columns {
-		if TransStringType(randTable.Columns[i][1])&arg != 0 {
+		if TransStringType(randTable.Columns[i].Type)&arg != 0 {
 			tempCols = append(tempCols, randTable.Columns[i])
 		}
 	}
@@ -205,11 +204,11 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 		panic(fmt.Sprintf("no valid column as arg %d", arg))
 	}
 	randColumn := tempCols[Rd(len(tempCols))]
-	colName, typeStr := randColumn[0], randColumn[1]
+	colName, typeStr := randColumn.Name, randColumn.Type
 	col := new(ast.ColumnNameExpr)
 	col.Name = &ast.ColumnName{
-		Table: randTable.Name,
-		Name:  model.NewCIStr(colName),
+		Table: randTable.Name.ToModel(),
+		Name:  colName.ToModel(),
 	}
 	col.Type = parser_types.FieldType{}
 	col.SetType(tidb_types.NewFieldType(TransToMysqlType(TransStringType(typeStr))))
@@ -217,7 +216,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 }
 
 // walk on select stmt
-func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) (string, []types.TableColumn, error) {
+func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) (string, []types.Column, error) {
 	g.walkResultSetNode(node.From.TableRefs, usedTables)
 	// if node.From.TableRefs.Right == nil && node.From.TableRefs.Left != nil {
 	// 	table = s.walkResultSetNode(node.From.TableRefs.Left)
@@ -243,7 +242,7 @@ func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, p
 	return sql, columnInfos, err
 }
 
-func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.TableColumn]interface{}) parser_driver.ValueExpr {
+func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[string]interface{}) parser_driver.ValueExpr {
 	switch t := e.(type) {
 	case *ast.ParenthesesExpr:
 		return evaluateRow(t.Expr, usedTables, pivotRows)
@@ -270,7 +269,7 @@ func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.Table
 		return r
 	case *ast.ColumnNameExpr:
 		for key, value := range pivotRows {
-			if key.Table+"."+key.Column == t.Name.OrigColName() {
+			if key == t.Name.OrigColName() {
 				v := parser_driver.ValueExpr{}
 				v.SetValue(value)
 				return v
@@ -294,8 +293,8 @@ func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[types.Table
 	return v
 }
 
-func Evaluate(whereClause ast.Node, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) parser_driver.ValueExpr {
-	row := map[types.TableColumn]interface{}{}
+func Evaluate(whereClause ast.Node, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) parser_driver.ValueExpr {
+	row := map[string]interface{}{}
 	for key, value := range pivotRows {
 		row[key], _ = getTypedValue(value)
 	}
@@ -332,7 +331,7 @@ func getTypedValue(it *connection.QueryItem) (interface{}, byte) {
 	}
 }
 
-func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[types.TableColumn]*connection.QueryItem) {
+func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) {
 	out := Evaluate(node.Where, usedTables, pivotRows)
 	pthese := ast.ParenthesesExpr{}
 	pthese.Expr = node.Where
@@ -356,20 +355,21 @@ func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Ta
 	}
 }
 
-func (g *Generator) walkResultFields(node *ast.SelectStmt, usedTables []types.Table) []types.TableColumn {
-	columns := make([]types.TableColumn, 0)
+func (g *Generator) walkResultFields(node *ast.SelectStmt, usedTables []types.Table) []types.Column {
+	columns := make([]types.Column, 0)
 	for _, table := range usedTables {
 		for _, column := range table.Columns {
 			selectField := ast.SelectField{
 				Expr: &ast.ColumnNameExpr{
 					Name: &ast.ColumnName{
-						Table: table.Name,
-						Name:  model.NewCIStr(column[0]),
+						Table: table.Name.ToModel(),
+						Name:  column.Name.ToModel(),
 					},
 				},
 			}
 			node.Fields.Fields = append(node.Fields.Fields, &selectField)
-			columns = append(columns, types.TableColumn{table.Name.O, column[0]})
+			// better use types.Column{column.Table, column.Name} ?
+			columns = append(columns, column.Clone())
 		}
 	}
 	return columns
@@ -382,7 +382,7 @@ func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) 
 	if l == 1 {
 		ts := ast.TableSource{}
 		tn := ast.TableName{}
-		tn.Name = usedTables[0].Name
+		tn.Name = usedTables[0].Name.ToModel()
 		ts.Source = &tn
 		node.Left = &ts
 		node.Right = nil
@@ -390,7 +390,7 @@ func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) 
 	for i := l - 1; i >= 1; i-- {
 		ts := ast.TableSource{}
 		tn := ast.TableName{}
-		tn.Name = usedTables[i].Name
+		tn.Name = usedTables[i].Name.ToModel()
 		ts.Source = &tn
 		if i > 1 {
 			left.Right = &ts
@@ -400,7 +400,7 @@ func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) 
 			left.Right = &ts
 			ts2 := ast.TableSource{}
 			tn2 := ast.TableName{}
-			tn2.Name = usedTables[i-1].Name
+			tn2.Name = usedTables[i-1].Name.ToModel()
 			ts2.Source = &tn2
 			left.Left = &ts2
 		}
