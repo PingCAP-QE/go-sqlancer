@@ -38,8 +38,8 @@ func TestCase1(t *testing.T) {
 		Name:    CIStr("t0"),
 		Columns: []Column{{Name: "c0", Type: "float", Null: true}},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 1,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 1,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -52,7 +52,7 @@ func TestCase1(t *testing.T) {
 //		Name:    CIStr("t0"),
 //		Columns: [][3]string{{"c0", "double unsigned", "YES"}},
 //		Indexes: nil,
-//	}}, map[Column]interface{}{
+//	}}, map[string]interface{}{
 //		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 1.0,
 //	})
 //	require.Equal(t, false, isTrueValue(value))
@@ -66,8 +66,8 @@ func TestCase4(t *testing.T) {
 		Name:    CIStr("t0"),
 		Columns: []Column{{Name: "c0", Type: "numeric", Null: true}},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 0.0,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 0.0,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -83,8 +83,8 @@ func TestCase6(t *testing.T) {
 			{Name: "t1", Type: "int"},
 		},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("t0"), Name: CIStr("c0")}: "0",
+	}}, map[string]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): "0",
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -102,9 +102,9 @@ func TestCase8(t *testing.T) {
 			{Name: "t1", Type: "int"},
 		},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 1,
-		Column{Table: CIStr("t0"), Name: CIStr("c1")}: 0,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 1,
+		Column{Table: CIStr("t0"), Name: CIStr("c1")}.String(): 0,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -120,9 +120,9 @@ func TestCase11(t *testing.T) {
 			{Name: "t1", Type: "int"},
 		},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 1,
-		Column{Table: CIStr("t0"), Name: CIStr("c1")}: 0,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 1,
+		Column{Table: CIStr("t0"), Name: CIStr("c1")}.String(): 0,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -136,8 +136,8 @@ func TestCase12(t *testing.T) {
 		Name:    CIStr("t0"),
 		Columns: []Column{{Name: "c0", Type: "text", Null: true}},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("t0"), Name: CIStr("c0")}: "1",
+	}}, map[string]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): "1",
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -150,8 +150,8 @@ func TestCase14(t *testing.T) {
 		Name:    CIStr("t0"),
 		Columns: []Column{{Name: "c0", Type: "float", Null: true}},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("t0"), Name: CIStr("c0")}: nil,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): nil,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -165,7 +165,7 @@ func TestCase14(t *testing.T) {
 //		Name:    CIStr("t0"),
 //		Columns: [][3]string{{"c0", "int", "YES"}},
 //		Indexes: nil,
-//	}}, map[Column]interface{}{
+//	}}, map[string]interface{}{
 //		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 0,
 //	})
 //	require.Equal(t, true, isTrueValue(value))
@@ -191,7 +191,7 @@ func TestCase16(t *testing.T) {
 //		Name:    CIStr("t1"),
 //		Columns: [][3]string{{"c0", "float", "YES"}},
 //		Indexes: nil,
-//	}}, map[Column]interface{}{
+//	}}, map[string]interface{}{
 //		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 0.0,
 //		Column{Table: CIStr("t1"), Name: CIStr("c0")}: 0.0,
 //	})
@@ -206,8 +206,8 @@ func TestCase29(t *testing.T) {
 		Name:    CIStr("t0"),
 		Columns: []Column{{Name: "c0", Type: "bool", Null: true}},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("t0"), Name: CIStr("c0")}: false,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): false,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -227,8 +227,8 @@ func TestCase31(t *testing.T) {
 		Name:    CIStr("t0"),
 		Columns: []Column{{Name: "c0", Type: "int", Null: true}},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 2,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 2,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -241,9 +241,9 @@ func TestCase_s01(t *testing.T) {
 			{Name: "col_text", Type: "text", Null: true},
 		},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_varchar")}: 0,
-		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_text")}:    nil,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_varchar")}.String(): 0,
+		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_text")}.String():    nil,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -253,8 +253,8 @@ func TestCase_s02(t *testing.T) {
 		Name:    CIStr("t0"),
 		Columns: []Column{{Name: "c0", Type: "int", Null: true}},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("t0"), Name: CIStr("c0")}: 2,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 2,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -278,9 +278,9 @@ WHERE (((!table_int_varchar_float_text.id) XOR (-1
 			{Name: "col_int", Type: "int", Null: true},
 		},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("table_inCIStrt_varchar_float_text"), Name: CIStr("id")}:   5,
-		Column{Table: CIStr("table_int_varchar_float_text"), Name: CIStr("col_float")}: nil,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("table_inCIStrt_varchar_float_text"), Name: CIStr("id")}.String():   5,
+		Column{Table: CIStr("table_int_varchar_float_text"), Name: CIStr("col_float")}.String(): nil,
 	})
 	require.Equal(t, false, isTrueValue(value))
 }
@@ -318,13 +318,13 @@ WHERE !((table_varchar_float_text.col_float XOR 15))
 			{Name: "col_int", Type: "int", Null: true},
 		},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("id")}:          15,
-		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_varchar")}: true,
-		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_float")}:   -0.1,
-		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_text")}:    -1,
-		Column{Table: CIStr("table_int"), Name: CIStr("id")}:                         9,
-		Column{Table: CIStr("table_int"), Name: CIStr("col_int")}:                    1,
+	}}, map[string]interface{}{
+		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("id")}.String():          15,
+		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_varchar")}.String(): true,
+		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_float")}.String():   -0.1,
+		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_text")}.String():    -1,
+		Column{Table: CIStr("table_int"), Name: CIStr("id")}.String():                         9,
+		Column{Table: CIStr("table_int"), Name: CIStr("col_int")}.String():                    1,
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
@@ -360,9 +360,9 @@ WHERE ((table_int_varchar_text.id XOR 4.0631823313220344e-01) XOR (!table_int_va
 			{Name: "col_text", Type: "text", Null: true},
 		},
 		Indexes: nil,
-	}}, map[Column]interface{}{
-		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("id")}:       8,
-		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_text")}: "0",
+	}}, map[string]interface{}{
+		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("id")}.String():       8,
+		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_text")}.String(): "0",
 	})
 	require.Equal(t, true, isTrueValue(value))
 }
