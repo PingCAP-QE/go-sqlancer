@@ -44,8 +44,19 @@ func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.Sele
 
 	selectStmtNode.Where = g.WhereClauseAst(&GenCtx{false}, depth, usedTables)
 
+	var tp ast.JoinType
+	switch Rd(3) {
+	case 0:
+		tp = ast.RightJoin
+	case 1:
+		tp = ast.LeftJoin
+	default:
+		tp = ast.CrossJoin
+	}
+
 	selectStmtNode.From = &ast.TableRefsClause{
 		TableRefs: &ast.Join{
+			Tp:    tp,
 			Left:  &ast.TableName{},
 			Right: &ast.TableName{},
 		},
