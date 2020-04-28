@@ -77,7 +77,7 @@ func GenerateHintExpr(usedTables []types.Table) (h *ast.TableOptimizerHint) {
 			if tableHasIndex[t.Name.String()] == nil {
 				tableHasIndex[t.Name.String()] = make([]string, 0)
 			}
-			tableHasIndex[t.Name.String()] = append(tableHasIndex[t.Name.String()], t.Name.String()+"."+i.String())
+			tableHasIndex[t.Name.String()] = append(tableHasIndex[t.Name.String()], i.String())
 		}
 	}
 	if len(tableHasIndex) > 0 {
