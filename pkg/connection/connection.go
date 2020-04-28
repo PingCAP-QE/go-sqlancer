@@ -59,7 +59,7 @@ func New(dsn string, opt *Option) (*Connection, error) {
 // Prepare connection
 func (c *Connection) Prepare() error {
 	if c.opt.GeneralLog {
-		return errors.Trace(c.GeneralLog(1))
+		c.GeneralLog(1)
 	}
 	return nil
 }
