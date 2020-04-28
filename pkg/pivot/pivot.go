@@ -49,7 +49,7 @@ func NewPivot(conf *Config) (*Pivot, error) {
 	return &Pivot{
 		Conf:      conf,
 		Executor:  e,
-		Generator: generator.Generator{},
+		Generator: generator.Generator{Config: generator.Config{Hint: conf.Hint}},
 	}, nil
 }
 

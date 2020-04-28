@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
+	"github.com/chaos-mesh/go-sqlancer/pkg/generator/hint"
 	"github.com/chaos-mesh/go-sqlancer/pkg/generator/operator"
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
@@ -23,6 +24,8 @@ import (
 type Generator struct {
 	Tables           []types.Table
 	allowColumnTypes []string
+
+	Config
 }
 
 func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.SelectStmt, error) {
@@ -43,6 +46,7 @@ func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.Sele
 			Right: &ast.TableName{},
 		},
 	}
+	selectStmtNode.TableHints = g.tableHintsExpr(usedTables)
 	return selectStmtNode, nil
 }
 
@@ -405,6 +409,27 @@ func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) 
 			left.Left = &ts2
 		}
 	}
+}
+
+func (g *Generator) tableHintsExpr(usedTables []types.Table) []*ast.TableOptimizerHint {
+	hints := make([]*ast.TableOptimizerHint, 0)
+	if !g.Hint {
+		return hints
+	}
+	// avoid duplicated hints
+	enabledHints := make(map[string]bool)
+	length := Rd(4)
+	for i := 0; i < length; i++ {
+		to := hint.GenerateHintExpr(usedTables)
+		if to == nil {
+			continue
+		}
+		if _, ok := enabledHints[to.HintName.String()]; !ok {
+			hints = append(hints, to)
+			enabledHints[to.HintName.String()] = true
+		}
+	}
+	return hints
 }
 
 func (g *Generator) CollectColumnNames(node ast.Node) []ast.ColumnName {
