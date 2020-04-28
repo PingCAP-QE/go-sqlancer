@@ -13,6 +13,7 @@ import (
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 
 	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/parser/opcode"
 	parser_types "github.com/pingcap/parser/types"
@@ -24,12 +25,32 @@ import (
 type Generator struct {
 	Tables           []types.Table
 	allowColumnTypes []string
+	tmpTableIndex    int
+	tmpColIndex      int
 
 	Config
 }
 
 type GenCtx struct {
 	IsInExprIndex bool
+}
+
+func (g *Generator) resetTmpTable() {
+	g.tmpTableIndex = 0
+}
+
+func (g *Generator) getTmpTable() string {
+	g.tmpTableIndex++
+	return fmt.Sprintf("tmp%d", g.tmpTableIndex)
+}
+
+func (g *Generator) resetTmpColumn() {
+	g.tmpColIndex = 0
+}
+
+func (g *Generator) getTmpColumn() string {
+	g.tmpColIndex++
+	return fmt.Sprintf("col_%d", g.tmpColIndex)
 }
 
 func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.SelectStmt, error) {
@@ -44,19 +65,8 @@ func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.Sele
 
 	selectStmtNode.Where = g.WhereClauseAst(&GenCtx{false}, depth, usedTables)
 
-	var tp ast.JoinType
-	switch Rd(3) {
-	case 0:
-		tp = ast.RightJoin
-	case 1:
-		tp = ast.LeftJoin
-	default:
-		tp = ast.CrossJoin
-	}
-
 	selectStmtNode.From = &ast.TableRefsClause{
 		TableRefs: &ast.Join{
-			Tp:    tp,
 			Left:  &ast.TableName{},
 			Right: &ast.TableName{},
 		},
@@ -239,7 +249,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 	colName, typeStr := randColumn.Name, randColumn.Type
 	col := new(ast.ColumnNameExpr)
 	col.Name = &ast.ColumnName{
-		Table: randTable.Name.ToModel(),
+		Table: randTable.TmpTableName().ToModel(),
 		Name:  colName.ToModel(),
 	}
 	col.Type = parser_types.FieldType{}
@@ -248,8 +258,12 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 }
 
 // walk on select stmt
-func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) (string, []types.Column, error) {
+func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table,
+	pivotRows map[string]*connection.QueryItem) (string, []types.Column, map[string]*connection.QueryItem, error) {
+	g.resetTmpTable()
+	g.resetTmpColumn()
 	g.walkResultSetNode(node.From.TableRefs, usedTables)
+	resultTables := g.RectifyResultSetNode(node.From.TableRefs, usedTables, pivotRows)
 	// if node.From.TableRefs.Right == nil && node.From.TableRefs.Left != nil {
 	// 	table = s.walkResultSetNode(node.From.TableRefs.Left)
 	// 	s.walkSelectStmtColumns(node, table, false)
@@ -266,12 +280,12 @@ func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table, p
 
 	// 	s.walkSelectStmtColumns(node, table, true)
 	// }
-	columnInfos := g.walkResultFields(node, usedTables)
+	columnInfos, updatedPivotRows := g.walkResultFields(node, resultTables, usedTables, pivotRows)
 	// s.walkOrderByClause(node.OrderBy, table)
-	g.RectifyCondition(node, usedTables, pivotRows)
+	g.RectifyCondition(node, resultTables, pivotRows)
 	// s.walkExprNode(node.Where, table, nil)
 	sql, err := BufferOut(node)
-	return sql, columnInfos, err
+	return sql, columnInfos, updatedPivotRows, err
 }
 
 func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[string]interface{}) parser_driver.ValueExpr {
@@ -363,6 +377,71 @@ func getTypedValue(it *connection.QueryItem) (interface{}, byte) {
 	}
 }
 
+func (g *Generator) RectifyResultSetNode(node ast.ResultSetNode, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) []types.Table {
+	switch node := node.(type) {
+	case *ast.Join:
+		{
+			return g.RectifyJoin(node, usedTables, pivotRows)
+		}
+	default:
+		panic("unreachable")
+	}
+}
+
+func (g *Generator) RectifyJoin(node *ast.Join, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) []types.Table {
+	if node.Right == nil {
+		if node, ok := node.Left.(*ast.TableSource); ok {
+			if tn, ok := node.Source.(*ast.TableName); ok {
+				for _, table := range usedTables {
+					if table.Name.EqModel(tn.Name) {
+						return []types.Table{table.Clone()}
+					}
+				}
+			}
+		}
+		panic("unreachable")
+	}
+
+	if right, ok := node.Right.(*ast.TableSource); ok {
+		var (
+			leftTables []types.Table
+			rightTable types.Table
+		)
+		switch node := node.Left.(type) {
+		case *ast.Join:
+			leftTables = g.RectifyJoin(node, usedTables, pivotRows)
+		case *ast.TableSource:
+			{
+				if tn, ok := node.Source.(*ast.TableName); ok {
+					for _, table := range usedTables {
+						if table.Name.EqModel(tn.Name) {
+							tmpTable := g.getTmpTable()
+							node.AsName = model.NewCIStr(tmpTable)
+							leftTables = []types.Table{table.Rename(tmpTable)}
+							break
+						}
+					}
+				}
+			}
+		default:
+			panic("unreachable")
+		}
+		for _, table := range usedTables {
+			if table.Name.EqModel(right.Source.(*ast.TableName).Name) {
+				tmpTable := g.getTmpTable()
+				right.AsName = model.NewCIStr(tmpTable)
+				rightTable = table.Rename(tmpTable)
+			}
+		}
+		allTables := append(leftTables, rightTable)
+		node.On = &ast.OnCondition{}
+		node.On.Expr = g.whereClauseAst(0, allTables)
+		return allTables
+	}
+
+	panic("unreachable")
+}
+
 func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) {
 	out := Evaluate(node.Where, usedTables, pivotRows)
 	pthese := ast.ParenthesesExpr{}
@@ -387,24 +466,25 @@ func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Ta
 	}
 }
 
-func (g *Generator) walkResultFields(node *ast.SelectStmt, usedTables []types.Table) []types.Column {
+func (g *Generator) walkResultFields(node *ast.SelectStmt, resultTables []types.Table, usedTables []types.Table,
+	pivotRows map[string]*connection.QueryItem) ([]types.Column, map[string]*connection.QueryItem) {
 	columns := make([]types.Column, 0)
-	for _, table := range usedTables {
+	rows := make(map[string]*connection.QueryItem)
+	for _, table := range resultTables {
 		for _, column := range table.Columns {
+			asname := g.getTmpColumn()
 			selectField := ast.SelectField{
-				Expr: &ast.ColumnNameExpr{
-					Name: &ast.ColumnName{
-						Table: table.Name.ToModel(),
-						Name:  column.Name.ToModel(),
-					},
-				},
+				Expr:   column.ToModel(),
+				AsName: model.NewCIStr(asname),
 			}
 			node.Fields.Fields = append(node.Fields.Fields, &selectField)
-			// better use types.Column{column.Table, column.Name} ?
-			columns = append(columns, column.Clone())
+			col := column.Clone()
+			col.AliasName = types.CIStr(asname)
+			columns = append(columns, col)
+			rows[asname] = pivotRows[column.String()]
 		}
 	}
-	return columns
+	return columns, rows
 }
 
 func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) {
@@ -420,15 +500,27 @@ func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) 
 		node.Right = nil
 	}
 	for i := l - 1; i >= 1; i-- {
+		var tp ast.JoinType
+		switch Rd(3) {
+		case 0:
+			tp = ast.RightJoin
+		case 1:
+			tp = ast.LeftJoin
+		default:
+			tp = ast.CrossJoin
+		}
+
 		ts := ast.TableSource{}
 		tn := ast.TableName{}
 		tn.Name = usedTables[i].Name.ToModel()
 		ts.Source = &tn
 		if i > 1 {
+			left.Tp = tp
 			left.Right = &ts
 			left.Left = &ast.Join{}
 			left = left.Left.(*ast.Join)
 		} else {
+			left.Tp = tp
 			left.Right = &ts
 			ts2 := ast.TableSource{}
 			tn2 := ast.TableName{}

@@ -193,7 +193,7 @@ func (p *Pivot) progress(ctx context.Context) {
 	}
 	// generate sql ast tree and
 	// generate sql where clause
-	selStmt, selectSQL, columns, err := p.GenSelectStmt(pivotRows, usedTables)
+	_, selectSQL, columns, updatedPivotRows, err := p.GenSelectStmt(pivotRows, usedTables)
 	if err != nil {
 		panic(err)
 	}
@@ -204,19 +204,19 @@ func (p *Pivot) progress(ctx context.Context) {
 		return
 	}
 	// verify pivot row in result row set
-	correct := p.verify(pivotRows, columns, resultRows)
+	correct := p.verify(updatedPivotRows, columns, resultRows)
 	fmt.Printf("Round %d, verify result %v!\n", p.round, correct)
 	if !correct {
-		subSQL, err := p.minifySelect(selStmt, pivotRows, usedTables, columns)
-		if err != nil {
-			log.Error("occurred an error when try to simplify select", zap.String("sql", selectSQL), zap.Error(err))
-			fmt.Printf("query:\n%s\n", selectSQL)
-		} else {
-			fmt.Printf("query:\n%s\n", selectSQL)
-			if len(subSQL) < len(selectSQL) {
-				fmt.Printf("sub query:\n%s\n", subSQL)
-			}
-		}
+		// subSQL, err := p.minifySelect(selStmt, pivotRows, usedTables, columns)
+		// if err != nil {
+		// 	log.Error("occurred an error when try to simplify select", zap.String("sql", selectSQL), zap.Error(err))
+		// 	fmt.Printf("query:\n%s\n", selectSQL)
+		// } else {
+		// 	fmt.Printf("query:\n%s\n", selectSQL)
+		// 	if len(subSQL) < len(selectSQL) {
+		// 		fmt.Printf("sub query:\n%s\n", subSQL)
+		// 	}
+		// }
 		fmt.Printf("row:\n")
 		p.printPivotRows(pivotRows)
 		if p.Conf.Silent && p.round >= p.Conf.ViewCount {
@@ -330,16 +330,17 @@ func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, e
 	return result, reallyUsed, nil
 }
 
-func (p *Pivot) GenSelectStmt(pivotRows map[string]*connection.QueryItem, usedTables []Table) (*ast.SelectStmt, string, []Column, error) {
+func (p *Pivot) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
+	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, error) {
 	stmtAst, err := p.SelectStmtAst(p.Conf.Depth, usedTables)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, nil, err
 	}
-	sql, columns, err := p.SelectStmt(&stmtAst, usedTables, pivotRows)
+	sql, columns, updatedPivotRows, err := p.SelectStmt(&stmtAst, usedTables, pivotRows)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, nil, err
 	}
-	return &stmtAst, sql, columns, nil
+	return &stmtAst, sql, columns, updatedPivotRows, nil
 }
 
 func (p *Pivot) ExecAndVerify(stmt *ast.SelectStmt, originRow map[string]*connection.QueryItem, columns []Column) (bool, error) {
@@ -387,7 +388,7 @@ func (p *Pivot) verify(originRow map[string]*connection.QueryItem, columns []Col
 func (p *Pivot) checkRow(originRow map[string]*connection.QueryItem, columns []Column, resultSet []*connection.QueryItem) bool {
 	for i, c := range columns {
 		// fmt.Printf("i: %d, column: %+v, left: %+v, right: %+v", i, c, originRow[c], resultSet[i])
-		if !compareQueryItem(originRow[c.String()], resultSet[i]) {
+		if !compareQueryItem(originRow[c.GetAliasName().String()], resultSet[i]) {
 			return false
 		}
 	}
@@ -523,6 +524,9 @@ func (p *Pivot) printPivotRows(pivotRows map[string]*connection.QueryItem) {
 }
 
 func compareQueryItem(left *connection.QueryItem, right *connection.QueryItem) bool {
+	if left == nil {
+		return true
+	}
 	if left.ValType.Name() != right.ValType.Name() {
 		return false
 	}
