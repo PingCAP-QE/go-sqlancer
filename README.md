@@ -21,6 +21,29 @@ bin/go-sqlancer -dsn "root:@tcp(127.0.0.1:4000)/"
   - [x] LE
 - [x] View
 - [x] Table partition
+- Hint
+  - [x] hash_agg
+  - [x] stream_agg
+  - [x] agg_to_cop
+  - [x] read_consistent_replica
+  - [x] no_index_merge
+  - [x] use_toja
+  - [x] enable_plan_cache
+  - [x] use_cascades
+  - [x] hash_join
+  - [x] merge_join
+  - [x] inl_join
+  - [x] memory_quota
+  - [x] max_execution_time
+  - [x] use_index
+  - [x] ignore_index
+  - [x] use_index_merge
+  - [ ] qb_name
+  - [ ] time_range
+  - [ ] read_from_storage
+  - [ ] query_type
+  - [ ] inl_hash_join
+  - [ ] inl_merge_join
 
 ## Issues
 
