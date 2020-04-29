@@ -238,6 +238,9 @@ func (p *Pivot) progress(ctx context.Context) {
 func (p *Pivot) exprIndex() {
 	for i := 0; i < Rd(10)+1; i++ {
 		n := p.createExpressionIndex()
+		if n == nil {
+			continue
+		}
 		if sql, err := BufferOut(n); err != nil {
 			// should never panic
 			panic(errors.Trace(err))
@@ -251,6 +254,13 @@ func (p *Pivot) exprIndex() {
 
 func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 	table := p.Tables[Rd(len(p.Tables))]
+	/* only contains a primary key col and a varchar col in `table_varchar`
+	   it will cause panic when create an expression index on it
+	   since a varchar can not do logic ops and other ops with numberic
+	*/
+	if table.Name.EqString("table_varchar") {
+		return nil
+	}
 	columns := make([]Column, 0)
 	// remove auto increment column for avoiding ERROR 3109:
 	// `Generated column '' cannot refer to auto-increment column`

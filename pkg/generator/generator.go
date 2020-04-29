@@ -106,7 +106,7 @@ func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int,
 			argType = TransMysqlType(node.L.GetType())
 		}
 		acceptType = f.GetAcceptType(0, argType)
-		if ctx.IsInExprIndex && argType != types.StringArg {
+		if ctx.IsInExprIndex {
 			acceptType &^= types.StringArg // clear string type from accept types
 		}
 		if Rd(3) > 0 {
@@ -198,7 +198,7 @@ func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
 				return ast.NewValueExpr("", "", "")
 			}
 		} else if arg&types.NumberLikeStringArg != 0 { // TODO: fix number like string is always before datetime
-			return ast.NewValueExpr(fmt.Sprintf("%d"+RdString(Rd(5)), Rd(1000)), "", "")
+			return ast.NewValueExpr(fmt.Sprintf("%d", Rd(1000)), "", "")
 		} else if arg&types.DatetimeAsStringArg != 0 {
 			return ast.NewValueExpr(RdTimestamp().Format("2006-01-02 15:04:05"), "", "")
 		}
@@ -222,7 +222,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 		}
 	}
 	if len(tempCols) == 0 {
-		panic(fmt.Sprintf("no valid column as arg %d", arg))
+		panic(fmt.Sprintf("no valid column as arg %d table %s", arg, randTable.Name))
 	}
 	randColumn := tempCols[Rd(len(tempCols))]
 	colName, typeStr := randColumn.Name, randColumn.Type
