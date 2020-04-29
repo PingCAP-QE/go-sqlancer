@@ -30,7 +30,6 @@ var hintKeywords = []*hintClass{
 	// with bool (TRUE or FALSE)
 	{"use_toja", 1, 1, false, false, false},
 	{"enable_plan_cache", 1, 1, false, false, false},
-	{"use_cascades", 1, 1, false, false, false},
 
 	// these have been renamed
 	// {"tidb_hj", 2, 3, false, false, true},
@@ -67,6 +66,9 @@ var disabledHintKeywords = []*hintClass{
 
 	{"inl_hash_join", 1, -1, false, false, false},
 	{"inl_merge_join", 1, -1, false, false, false},
+
+	// Note: has bug on partition table
+	{"use_cascades", 1, 1, false, false, false},
 }
 
 func GenerateHintExpr(usedTables []types.Table) (h *ast.TableOptimizerHint) {

@@ -162,6 +162,7 @@ func (p *Pivot) kickup(ctx context.Context) {
 	p.wg.Add(1)
 	p.prepare(ctx)
 	p.LoadSchema(ctx)
+	p.exprIndex()
 
 	go func() {
 		defer p.wg.Done()
@@ -232,6 +233,53 @@ func (p *Pivot) progress(ctx context.Context) {
 		}
 	}
 	// log.Info("run one statement successfully!", zap.String("query", selectStmt))
+}
+
+func (p *Pivot) exprIndex() {
+	for i := 0; i < Rd(10)+1; i++ {
+		n := p.createExpressionIndex()
+		if sql, err := BufferOut(n); err != nil {
+			// should never panic
+			panic(errors.Trace(err))
+		} else if _, err = p.Executor.GetConn().Select(sql); err != nil {
+			panic(errors.Trace(err))
+		}
+		fmt.Println("add one index on expression success")
+	}
+	fmt.Println("Create expression index successfully")
+}
+
+func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
+	table := p.Tables[Rd(len(p.Tables))]
+	columns := make([]Column, 0)
+	// remove auto increment column for avoiding ERROR 3109:
+	// `Generated column '' cannot refer to auto-increment column`
+	for _, column := range table.Columns {
+		if !column.Name.HasPrefix("id_") {
+			columns = append(columns, column)
+		}
+	}
+	var backup []Column
+	copy(backup, table.Columns)
+	table.Columns = columns
+
+	exprs := make([]ast.ExprNode, 0)
+	for x := 0; x < Rd(3)+1; x++ {
+		exprs = append(exprs, p.WhereClauseAst(&generator.GenCtx{true}, 1, []Table{table}))
+	}
+	node := ast.CreateIndexStmt{}
+	node.IndexName = "idx_" + RdStringChar(5)
+	node.Table = &ast.TableName{Name: table.Name.ToModel()}
+	node.IndexPartSpecifications = make([]*ast.IndexPartSpecification, 0)
+	for _, expr := range exprs {
+		node.IndexPartSpecifications = append(node.IndexPartSpecifications, &ast.IndexPartSpecification{
+			Expr: expr,
+		})
+	}
+	node.IndexOption = &ast.IndexOption{}
+
+	table.Columns = backup
+	return &node
 }
 
 // ChoosePivotedRow choose a row
