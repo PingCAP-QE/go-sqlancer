@@ -178,7 +178,7 @@ func (c *Connection) ShowDatabases() ([]string, error) {
 func (c *Connection) CreateViewBySelect(view, selectStmt string, rows int, columns []types.Column) error {
 	var order []string
 	for _, column := range columns {
-		order = append(order, column.String())
+		order = append(order, column.GetAliasName().String())
 	}
 	viewStmt := fmt.Sprintf("CREATE VIEW `%s` AS %s ORDER BY %s LIMIT %d, %d", view, selectStmt, strings.Join(order, ", "), util.Rd(rows), util.RdRange(5, 15))
 	_, err := c.db.Exec(viewStmt)

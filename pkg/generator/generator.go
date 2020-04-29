@@ -259,11 +259,11 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 
 // walk on select stmt
 func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table,
-	pivotRows map[string]*connection.QueryItem) (string, []types.Column, map[string]*connection.QueryItem, error) {
+	pivotRows map[string]*connection.QueryItem) (string, []types.Column, map[string]*connection.QueryItem, map[string]string, error) {
 	g.resetTmpTable()
 	g.resetTmpColumn()
 	g.walkResultSetNode(node.From.TableRefs, usedTables)
-	resultTables := g.RectifyResultSetNode(node.From.TableRefs, usedTables, pivotRows)
+	resultTables, tableMap := g.RectifyResultSetNode(node.From.TableRefs, usedTables, pivotRows)
 	// if node.From.TableRefs.Right == nil && node.From.TableRefs.Left != nil {
 	// 	table = s.walkResultSetNode(node.From.TableRefs.Left)
 	// 	s.walkSelectStmtColumns(node, table, false)
@@ -282,30 +282,30 @@ func (g *Generator) SelectStmt(node *ast.SelectStmt, usedTables []types.Table,
 	// }
 	columnInfos, updatedPivotRows := g.walkResultFields(node, resultTables, usedTables, pivotRows)
 	// s.walkOrderByClause(node.OrderBy, table)
-	g.RectifyCondition(node, resultTables, pivotRows)
+	node.Where = g.RectifyCondition(node.Where, resultTables, pivotRows, tableMap)
 	// s.walkExprNode(node.Where, table, nil)
 	sql, err := BufferOut(node)
-	return sql, columnInfos, updatedPivotRows, err
+	return sql, columnInfos, updatedPivotRows, tableMap, err
 }
 
-func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[string]interface{}) parser_driver.ValueExpr {
+func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[string]interface{}, tableMap map[string]string) parser_driver.ValueExpr {
 	switch t := e.(type) {
 	case *ast.ParenthesesExpr:
-		return evaluateRow(t.Expr, usedTables, pivotRows)
+		return evaluateRow(t.Expr, usedTables, pivotRows, tableMap)
 	case *ast.BinaryOperationExpr:
-		res, err := operator.BinaryOps.Eval(opcode.Ops[t.Op], evaluateRow(t.L, usedTables, pivotRows), evaluateRow(t.R, usedTables, pivotRows))
+		res, err := operator.BinaryOps.Eval(opcode.Ops[t.Op], evaluateRow(t.L, usedTables, pivotRows, tableMap), evaluateRow(t.R, usedTables, pivotRows, tableMap))
 		if err != nil {
 			panic(fmt.Sprintf("error occurred on eval: %+v", err))
 		}
 		return res
 	case *ast.UnaryOperationExpr:
-		res, err := operator.UnaryOps.Eval(opcode.Ops[t.Op], evaluateRow(t.V, usedTables, pivotRows))
+		res, err := operator.UnaryOps.Eval(opcode.Ops[t.Op], evaluateRow(t.V, usedTables, pivotRows, tableMap))
 		if err != nil {
 			panic(fmt.Sprintf("error occurred on eval: %+v", err))
 		}
 		return res
 	case *ast.IsNullExpr:
-		subResult := evaluateRow(t.Expr, usedTables, pivotRows)
+		subResult := evaluateRow(t.Expr, usedTables, pivotRows, tableMap)
 		c := ConvertToBoolOrNull(subResult)
 		r := parser_driver.ValueExpr{}
 		r.SetInt64(0)
@@ -315,9 +315,20 @@ func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[string]inte
 		return r
 	case *ast.ColumnNameExpr:
 		for key, value := range pivotRows {
-			if key == t.Name.OrigColName() {
+			originTableName := t.Name.Table.L
+			for k, v := range tableMap {
+				if v == originTableName {
+					originTableName = k
+					break
+				}
+			}
+			originColumnName := t.Name.Name.L
+			if key == fmt.Sprintf("%s.%s", originTableName, originColumnName) {
 				v := parser_driver.ValueExpr{}
 				v.SetValue(value)
+				if tmpTable, ok := tableMap[t.Name.Table.L]; ok {
+					t.Name.Table = model.NewCIStr(tmpTable)
+				}
 				return v
 			}
 		}
@@ -339,12 +350,12 @@ func evaluateRow(e ast.Node, usedTables []types.Table, pivotRows map[string]inte
 	return v
 }
 
-func Evaluate(whereClause ast.Node, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) parser_driver.ValueExpr {
+func Evaluate(whereClause ast.Node, usedTables []types.Table, pivotRows map[string]*connection.QueryItem, tableMap map[string]string) parser_driver.ValueExpr {
 	row := map[string]interface{}{}
 	for key, value := range pivotRows {
 		row[key], _ = getTypedValue(value)
 	}
-	return evaluateRow(whereClause, usedTables, row)
+	return evaluateRow(whereClause, usedTables, row, tableMap)
 }
 
 func trueValueExpr() parser_driver.ValueExpr {
@@ -377,7 +388,8 @@ func getTypedValue(it *connection.QueryItem) (interface{}, byte) {
 	}
 }
 
-func (g *Generator) RectifyResultSetNode(node ast.ResultSetNode, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) []types.Table {
+func (g *Generator) RectifyResultSetNode(node ast.ResultSetNode, usedTables []types.Table,
+	pivotRows map[string]*connection.QueryItem) ([]types.Table, map[string]string) {
 	switch node := node.(type) {
 	case *ast.Join:
 		{
@@ -388,13 +400,14 @@ func (g *Generator) RectifyResultSetNode(node ast.ResultSetNode, usedTables []ty
 	}
 }
 
-func (g *Generator) RectifyJoin(node *ast.Join, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) []types.Table {
+func (g *Generator) RectifyJoin(node *ast.Join, usedTables []types.Table,
+	pivotRows map[string]*connection.QueryItem) ([]types.Table, map[string]string) {
 	if node.Right == nil {
 		if node, ok := node.Left.(*ast.TableSource); ok {
 			if tn, ok := node.Source.(*ast.TableName); ok {
 				for _, table := range usedTables {
 					if table.Name.EqModel(tn.Name) {
-						return []types.Table{table.Clone()}
+						return []types.Table{table.Clone()}, make(map[string]string)
 					}
 				}
 			}
@@ -406,10 +419,11 @@ func (g *Generator) RectifyJoin(node *ast.Join, usedTables []types.Table, pivotR
 		var (
 			leftTables []types.Table
 			rightTable types.Table
+			tableMap   map[string]string
 		)
 		switch node := node.Left.(type) {
 		case *ast.Join:
-			leftTables = g.RectifyJoin(node, usedTables, pivotRows)
+			leftTables, tableMap = g.RectifyJoin(node, usedTables, pivotRows)
 		case *ast.TableSource:
 			{
 				if tn, ok := node.Source.(*ast.TableName); ok {
@@ -418,6 +432,8 @@ func (g *Generator) RectifyJoin(node *ast.Join, usedTables []types.Table, pivotR
 							tmpTable := g.getTmpTable()
 							node.AsName = model.NewCIStr(tmpTable)
 							leftTables = []types.Table{table.Rename(tmpTable)}
+							tableMap = make(map[string]string)
+							tableMap[table.Name.String()] = tmpTable
 							break
 						}
 					}
@@ -431,24 +447,26 @@ func (g *Generator) RectifyJoin(node *ast.Join, usedTables []types.Table, pivotR
 				tmpTable := g.getTmpTable()
 				right.AsName = model.NewCIStr(tmpTable)
 				rightTable = table.Rename(tmpTable)
+				tableMap[table.Name.String()] = tmpTable
 			}
 		}
 		allTables := append(leftTables, rightTable)
 		node.On = &ast.OnCondition{}
 		node.On.Expr = g.whereClauseAst(0, allTables)
-		return allTables
+		node.On.Expr = g.RectifyCondition(node.On.Expr, allTables, pivotRows, tableMap)
+		return allTables, tableMap
 	}
 
 	panic("unreachable")
 }
 
-func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) {
-	out := Evaluate(node.Where, usedTables, pivotRows)
+func (g *Generator) RectifyCondition(node ast.ExprNode, usedTables []types.Table, pivotRows map[string]*connection.QueryItem, tableMap map[string]string) ast.ExprNode {
+	out := Evaluate(node, usedTables, pivotRows, tableMap)
 	pthese := ast.ParenthesesExpr{}
-	pthese.Expr = node.Where
+	pthese.Expr = node
 	switch out.Kind() {
 	case tidb_types.KindNull:
-		node.Where = &ast.IsNullExpr{
+		node = &ast.IsNullExpr{
 			Expr: &pthese,
 			Not:  false,
 		}
@@ -458,12 +476,13 @@ func (g *Generator) RectifyCondition(node *ast.SelectStmt, usedTables []types.Ta
 		zero.SetInt64(0)
 		res, _ := out.CompareDatum(&stmtctx.StatementContext{AllowInvalidDate: true, IgnoreTruncate: true}, &zero.Datum)
 		if res == 0 {
-			node.Where = &ast.UnaryOperationExpr{
+			node = &ast.UnaryOperationExpr{
 				Op: opcode.Not,
 				V:  &pthese,
 			}
 		}
 	}
+	return node
 }
 
 func (g *Generator) walkResultFields(node *ast.SelectStmt, resultTables []types.Table, usedTables []types.Table,
@@ -484,6 +503,13 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, resultTables []types.
 			rows[asname] = pivotRows[column.String()]
 		}
 	}
+	// for _, userTable := range usedTables {
+	// 	for _, resultTable := range resultTables {
+	// 		if userTable.Name == resultTable.Name {
+	// 			tableMap[userTable.Name.String()] = resultTable.TmpTableName().String()
+	// 		}
+	// 	}
+	// }
 	return columns, rows
 }
 

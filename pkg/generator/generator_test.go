@@ -40,7 +40,7 @@ func TestCase1(t *testing.T) {
 		Indexes: nil,
 	}}, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 1,
-	})
+	}, make(map[string]string))
 	require.Equal(t, true, isTrueValue(value))
 }
 
@@ -68,7 +68,7 @@ func TestCase4(t *testing.T) {
 		Indexes: nil,
 	}}, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 0.0,
-	})
+	}, make(map[string]string))
 	require.Equal(t, false, isTrueValue(value))
 }
 
@@ -85,7 +85,7 @@ func TestCase6(t *testing.T) {
 		Indexes: nil,
 	}}, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): "0",
-	})
+	}, make(map[string]string))
 	require.Equal(t, true, isTrueValue(value))
 }
 
@@ -105,7 +105,7 @@ func TestCase8(t *testing.T) {
 	}}, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 1,
 		Column{Table: CIStr("t0"), Name: CIStr("c1")}.String(): 0,
-	})
+	}, make(map[string]string))
 	require.Equal(t, true, isTrueValue(value))
 }
 
@@ -123,7 +123,7 @@ func TestCase11(t *testing.T) {
 	}}, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 1,
 		Column{Table: CIStr("t0"), Name: CIStr("c1")}.String(): 0,
-	})
+	}, make(map[string]string))
 	require.Equal(t, true, isTrueValue(value))
 }
 
@@ -138,7 +138,7 @@ func TestCase12(t *testing.T) {
 		Indexes: nil,
 	}}, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): "1",
-	})
+	}, make(map[string]string))
 	require.Equal(t, true, isTrueValue(value))
 }
 
@@ -152,7 +152,7 @@ func TestCase14(t *testing.T) {
 		Indexes: nil,
 	}}, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): nil,
-	})
+	}, make(map[string]string))
 	require.Equal(t, false, isTrueValue(value))
 }
 
@@ -208,7 +208,7 @@ func TestCase29(t *testing.T) {
 		Indexes: nil,
 	}}, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): false,
-	})
+	}, make(map[string]string))
 	require.Equal(t, true, isTrueValue(value))
 }
 
@@ -229,7 +229,7 @@ func TestCase31(t *testing.T) {
 		Indexes: nil,
 	}}, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 2,
-	})
+	}, make(map[string]string))
 	require.Equal(t, false, isTrueValue(value))
 }
 
@@ -244,7 +244,7 @@ func TestCase_s01(t *testing.T) {
 	}}, map[string]interface{}{
 		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_varchar")}.String(): 0,
 		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_text")}.String():    nil,
-	})
+	}, make(map[string]string))
 	require.Equal(t, false, isTrueValue(value))
 }
 
@@ -255,7 +255,7 @@ func TestCase_s02(t *testing.T) {
 		Indexes: nil,
 	}}, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 2,
-	})
+	}, make(map[string]string))
 	require.Equal(t, true, isTrueValue(value))
 }
 
@@ -281,7 +281,7 @@ WHERE (((!table_int_varchar_float_text.id) XOR (-1
 	}}, map[string]interface{}{
 		Column{Table: CIStr("table_inCIStrt_varchar_float_text"), Name: CIStr("id")}.String():   5,
 		Column{Table: CIStr("table_int_varchar_float_text"), Name: CIStr("col_float")}.String(): nil,
-	})
+	}, make(map[string]string))
 	require.Equal(t, false, isTrueValue(value))
 }
 
@@ -325,7 +325,7 @@ WHERE !((table_varchar_float_text.col_float XOR 15))
 		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_text")}.String():    -1,
 		Column{Table: CIStr("table_int"), Name: CIStr("id")}.String():                         9,
 		Column{Table: CIStr("table_int"), Name: CIStr("col_int")}.String():                    1,
-	})
+	}, make(map[string]string))
 	require.Equal(t, true, isTrueValue(value))
 }
 
@@ -363,6 +363,6 @@ WHERE ((table_int_varchar_text.id XOR 4.0631823313220344e-01) XOR (!table_int_va
 	}}, map[string]interface{}{
 		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("id")}.String():       8,
 		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_text")}.String(): "0",
-	})
+	}, make(map[string]string))
 	require.Equal(t, true, isTrueValue(value))
 }
