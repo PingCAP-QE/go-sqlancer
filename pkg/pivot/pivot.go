@@ -162,9 +162,11 @@ func (p *Pivot) kickup(ctx context.Context) {
 	p.wg.Add(1)
 	p.prepare(ctx)
 	p.LoadSchema(ctx)
-	p.addExprIndex()
-	// reload indexes created
-	p.LoadSchema(ctx)
+	if p.Conf.ExprIndex {
+		p.addExprIndex()
+		// reload indexes created
+		p.LoadSchema(ctx)
+	}
 
 	go func() {
 		defer p.wg.Done()
