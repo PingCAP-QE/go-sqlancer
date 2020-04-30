@@ -43,11 +43,17 @@ func ConvertToBoolOrNull(a parser_driver.ValueExpr) int8 {
 		return 1
 	case tidb_types.KindString:
 		s := a.GetValue().(string)
-		match, _ := regexp.MatchString(`^[\-\+]?[1-9]+|^[\+\-]?0+[1-9]`, s)
-		if match {
-			return 1
+		re, _ := regexp.Compile(`^[-+]?[0-9]*\.?[0-9]+`)
+		matchall := re.FindAllString(s, -1)
+		if len(matchall) == 0 {
+			return 0
 		}
-		return 0
+		numStr := matchall[0]
+		match, _ := regexp.MatchString(`^[-+]?0*\.?0+$`, numStr)
+		if match {
+			return 0
+		}
+		return 1
 	case tidb_types.KindMysqlDecimal:
 		d := a.GetMysqlDecimal()
 		if d.IsZero() {
