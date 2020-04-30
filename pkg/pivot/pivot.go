@@ -162,7 +162,9 @@ func (p *Pivot) kickup(ctx context.Context) {
 	p.wg.Add(1)
 	p.prepare(ctx)
 	p.LoadSchema(ctx)
-	p.exprIndex()
+	p.addExprIndex()
+	// reload indexes created
+	p.LoadSchema(ctx)
 
 	go func() {
 		defer p.wg.Done()
@@ -235,7 +237,7 @@ func (p *Pivot) progress(ctx context.Context) {
 	// log.Info("run one statement successfully!", zap.String("query", selectStmt))
 }
 
-func (p *Pivot) exprIndex() {
+func (p *Pivot) addExprIndex() {
 	for i := 0; i < Rd(10)+1; i++ {
 		n := p.createExpressionIndex()
 		if n == nil {
