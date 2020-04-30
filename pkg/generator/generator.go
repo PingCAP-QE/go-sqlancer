@@ -96,7 +96,7 @@ func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int,
 		argType := 0
 		acceptType := types.AnyArg
 		if ctx.IsInExprIndex { // avoid string ops in CREATE INDEX stmt
-			acceptType ^= types.DatetimeArg | types.StringArg
+			acceptType &^= types.DatetimeArg | types.StringArg
 		}
 		if Rd(3) > 0 {
 			node.L = g.columnExpr(usedTables, acceptType)
@@ -132,7 +132,7 @@ func (g *Generator) makeUnaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int, 
 			node.Op = opcode.Not
 			arg := types.AnyArg
 			if ctx.IsInExprIndex {
-				arg ^= types.StringArg | types.DatetimeArg
+				arg &^= types.StringArg | types.DatetimeArg
 			}
 			// no need to check params number
 			if Rd(3) > 0 {
