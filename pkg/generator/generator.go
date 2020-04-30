@@ -28,6 +28,10 @@ type Generator struct {
 	Config
 }
 
+type GenCtx struct {
+	IsInExprIndex bool
+}
+
 func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.SelectStmt, error) {
 	selectStmtNode := ast.SelectStmt{
 		SelectStmtOpts: &ast.SelectStmtOpts{
@@ -38,7 +42,7 @@ func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.Sele
 		},
 	}
 
-	selectStmtNode.Where = g.whereClauseAst(depth, usedTables)
+	selectStmtNode.Where = g.WhereClauseAst(&GenCtx{false}, depth, usedTables)
 
 	selectStmtNode.From = &ast.TableRefsClause{
 		TableRefs: &ast.Join{
@@ -50,7 +54,7 @@ func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.Sele
 	return selectStmtNode, nil
 }
 
-func (g *Generator) whereClauseAst(depth int, usedTables []types.Table) ast.ExprNode {
+func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int, usedTables []types.Table) ast.ExprNode {
 	// TODO: support single operation like NOT
 	// TODO: support func
 	// TODO: support subquery
@@ -59,15 +63,15 @@ func (g *Generator) whereClauseAst(depth int, usedTables []types.Table) ast.Expr
 	pthese := ast.ParenthesesExpr{}
 	switch Rd(4) {
 	case 0:
-		g.makeUnaryOp(&pthese, depth, usedTables)
+		g.makeUnaryOp(ctx, &pthese, depth, usedTables)
 	default:
-		g.makeBinaryOp(&pthese, depth, usedTables)
+		g.makeBinaryOp(ctx, &pthese, depth, usedTables)
 	}
 	return &pthese
 }
 
 // change ParenthesesExpr to more extensive
-func (g *Generator) makeBinaryOp(e *ast.ParenthesesExpr, depth int, usedTables []types.Table) {
+func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int, usedTables []types.Table) {
 	node := ast.BinaryOperationExpr{}
 	e.Expr = &node
 	if depth > 0 {
@@ -79,8 +83,8 @@ func (g *Generator) makeBinaryOp(e *ast.ParenthesesExpr, depth int, usedTables [
 		case *types.Fn:
 			panic("not implement binary functions")
 		}
-		node.L = g.whereClauseAst(depth-1, usedTables)
-		node.R = g.whereClauseAst(Rd(depth), usedTables)
+		node.L = g.WhereClauseAst(ctx, depth-1, usedTables)
+		node.R = g.WhereClauseAst(ctx, Rd(depth), usedTables)
 	} else {
 		f := operator.BinaryOps.Rand()
 		switch t := f.(type) {
@@ -90,14 +94,21 @@ func (g *Generator) makeBinaryOp(e *ast.ParenthesesExpr, depth int, usedTables [
 			panic("not implement binary functions")
 		}
 		argType := 0
+		acceptType := types.AnyArg
+		if ctx.IsInExprIndex { // avoid string ops in CREATE INDEX stmt
+			acceptType &^= types.DatetimeArg | types.StringArg
+		}
 		if Rd(3) > 0 {
-			node.L = g.columnExpr(usedTables, types.AnyArg)
+			node.L = g.columnExpr(usedTables, acceptType)
 			argType = TransMysqlType(node.L.GetType())
 		} else {
-			node.L = g.constValueExpr(types.AnyArg)
+			node.L = g.constValueExpr(acceptType)
 			argType = TransMysqlType(node.L.GetType())
 		}
-		acceptType := f.GetAcceptType(0, argType)
+		acceptType = f.GetAcceptType(0, argType)
+		if ctx.IsInExprIndex {
+			acceptType &^= types.StringArg // clear string type from accept types
+		}
 		if Rd(3) > 0 {
 			node.R = g.columnExpr(usedTables, acceptType)
 		} else {
@@ -106,24 +117,28 @@ func (g *Generator) makeBinaryOp(e *ast.ParenthesesExpr, depth int, usedTables [
 	}
 }
 
-func (g *Generator) makeUnaryOp(e *ast.ParenthesesExpr, depth int, usedTables []types.Table) {
+func (g *Generator) makeUnaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int, usedTables []types.Table) {
 	node := ast.UnaryOperationExpr{}
 	e.Expr = &node
 	if depth > 0 {
 		switch Rd(1) {
 		default:
 			node.Op = opcode.Not
-			node.V = g.whereClauseAst(depth-1, usedTables)
+			node.V = g.WhereClauseAst(ctx, depth-1, usedTables)
 		}
 	} else {
 		switch Rd(1) {
 		default:
 			node.Op = opcode.Not
+			arg := types.AnyArg
+			if ctx.IsInExprIndex {
+				arg &^= types.StringArg | types.DatetimeArg
+			}
 			// no need to check params number
 			if Rd(3) > 0 {
-				node.V = g.columnExpr(usedTables, types.AnyArg)
+				node.V = g.columnExpr(usedTables, arg)
 			} else {
-				node.V = g.constValueExpr(types.AnyArg)
+				node.V = g.constValueExpr(arg)
 			}
 		}
 	}
@@ -182,6 +197,8 @@ func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
 			default:
 				return ast.NewValueExpr("", "", "")
 			}
+		} else if arg&types.NumberLikeStringArg != 0 { // TODO: fix number like string is always before datetime
+			return ast.NewValueExpr(fmt.Sprintf("%d", Rd(1000)), "", "")
 		} else if arg&types.DatetimeAsStringArg != 0 {
 			return ast.NewValueExpr(RdTimestamp().Format("2006-01-02 15:04:05"), "", "")
 		}
@@ -205,7 +222,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 		}
 	}
 	if len(tempCols) == 0 {
-		panic(fmt.Sprintf("no valid column as arg %d", arg))
+		panic(fmt.Sprintf("no valid column as arg %d table %s", arg, randTable.Name))
 	}
 	randColumn := tempCols[Rd(len(tempCols))]
 	colName, typeStr := randColumn.Name, randColumn.Type

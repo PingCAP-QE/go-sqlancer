@@ -12,6 +12,7 @@ import (
 const (
 	StringArg           = 1 << iota
 	DatetimeAsStringArg = 1 << iota // datetime formatted string: "1990-10-11"
+	NumberLikeStringArg = 1 << iota // "1.001" "42f_xa" start with number
 	IntArg              = 1 << iota
 	FloatArg            = 1 << iota
 	DatetimeArg         = 1 << iota
@@ -24,6 +25,7 @@ func NewAcceptTypeMap() *map[int]int {
 	m := make(map[int]int)
 	m[StringArg] = AnyArg
 	m[DatetimeAsStringArg] = AnyArg
+	m[NumberLikeStringArg] = AnyArg
 	m[IntArg] = AnyArg
 	m[FloatArg] = AnyArg
 	m[DatetimeArg] = AnyArg
