@@ -18,6 +18,7 @@ const (
 	silentMode  = "silent"
 	nmDebug     = "debug"
 	nmHint      = "hint"
+	nmExprIdx   = "expr-index"
 )
 
 var (
@@ -29,6 +30,7 @@ var (
 	silent    = flag.Bool(silentMode, false, "silent when verify failed")
 	debug     = flag.Bool(nmDebug, false, "enable debug output")
 	hint      = flag.Bool(nmHint, true, "enable sql hint for TiDB")
+	exprIdx   = flag.Bool(nmExprIdx, false, "enable create expression index")
 )
 
 func main() {
@@ -77,5 +79,8 @@ func loadConfig() {
 	}
 	if actualFlags[nmHint] {
 		conf.Hint = *hint
+	}
+	if actualFlags[nmExprIdx] {
+		conf.ExprIndex = *hint
 	}
 }

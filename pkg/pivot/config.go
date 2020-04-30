@@ -19,9 +19,10 @@ type Config struct {
 	Debug  bool
 
 	ViewCount int
+	Hint      bool
+	ExprIndex bool
 	// TODO implement them
 	PrepareStmt bool
-	Hint        bool
 }
 
 // NewConfig create default config
@@ -34,6 +35,7 @@ func NewConfig() *Config {
 		Silent:      false,
 		Debug:       false,
 		ViewCount:   10,
+		ExprIndex:   false,
 	}
 }
 
