@@ -432,3 +432,43 @@ func TestBinaryCaseString_3(t *testing.T) {
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
+
+func TestNotString_1(t *testing.T) {
+	a := parser_driver.ValueExpr{}
+	a.SetValue("Sss")
+	expected := parser_driver.ValueExpr{}
+	expected.SetValue(true)
+	actual, err := Not.Eval(a)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	a.SetValue("12abc")
+	expected.SetValue(false)
+	actual, err = Not.Eval(a)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	a.SetValue(".3,wZ!")
+	expected.SetValue(false)
+	actual, err = Not.Eval(a)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	a.SetValue(".1")
+	expected.SetValue(false)
+	actual, err = Not.Eval(a)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	a.SetValue(".0000001e+00")
+	expected.SetValue(false)
+	actual, err = Not.Eval(a)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	a.SetValue(".000000e+00")
+	expected.SetValue(true)
+	actual, err = Not.Eval(a)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+}
