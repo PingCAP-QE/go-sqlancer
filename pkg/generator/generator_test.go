@@ -29,7 +29,7 @@ func isTrueValue(expr parserdriver.ValueExpr) bool {
 }
 
 func GenCtxWithTables(tables []Table) *GenCtx {
-	genCtx := NewGenCtx(false)
+	genCtx := NewGenCtx(false, tables, nil)
 	genCtx.ResultTables = tables
 	return genCtx
 }
@@ -47,7 +47,7 @@ func TestCase1(t *testing.T) {
 	}}
 	genCtx := GenCtxWithTables(tables)
 
-	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0"), genCtx, tables, map[string]interface{}{
+	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0"), genCtx, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 1,
 	})
 	require.Equal(t, true, isTrueValue(value))
@@ -79,7 +79,7 @@ func TestCase4(t *testing.T) {
 	}}
 	genCtx := GenCtxWithTables(tables)
 
-	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE t0.c0"), genCtx, tables, map[string]interface{}{
+	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE t0.c0"), genCtx, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 0.0,
 	})
 	require.Equal(t, false, isTrueValue(value))
@@ -100,7 +100,7 @@ func TestCase6(t *testing.T) {
 	}}
 	genCtx := GenCtxWithTables(tables)
 
-	value := evaluateRow(parse(t, "SELECT * FROM t0"), genCtx, tables, map[string]interface{}{
+	value := evaluateRow(parse(t, "SELECT * FROM t0"), genCtx, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): "0",
 	})
 	require.Equal(t, true, isTrueValue(value))
@@ -123,7 +123,7 @@ func TestCase8(t *testing.T) {
 	}}
 	genCtx := GenCtxWithTables(tables)
 
-	value := evaluateRow(parse(t, "SELECT t0.c0 FROM t0 WHERE t0.c1 OR t0.c0"), genCtx, tables, map[string]interface{}{
+	value := evaluateRow(parse(t, "SELECT t0.c0 FROM t0 WHERE t0.c1 OR t0.c0"), genCtx, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 1,
 		Column{Table: CIStr("t0"), Name: CIStr("c1")}.String(): 0,
 	})
@@ -145,7 +145,7 @@ func TestCase11(t *testing.T) {
 	}}
 	genCtx := GenCtxWithTables(tables)
 
-	value := evaluateRow(parse(t, "SELECT t0.c0 FROM t0 WHERE t0.c1 OR t0.c0"), genCtx, tables, map[string]interface{}{
+	value := evaluateRow(parse(t, "SELECT t0.c0 FROM t0 WHERE t0.c1 OR t0.c0"), genCtx, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 1,
 		Column{Table: CIStr("t0"), Name: CIStr("c1")}.String(): 0,
 	})
@@ -165,7 +165,7 @@ func TestCase12(t *testing.T) {
 	}}
 	genCtx := GenCtxWithTables(tables)
 
-	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0"), genCtx, tables, map[string]interface{}{
+	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE ('a' != t0.c0) AND t0.c0"), genCtx, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): "1",
 	})
 	require.Equal(t, true, isTrueValue(value))
@@ -183,7 +183,7 @@ func TestCase14(t *testing.T) {
 	}}
 	genCtx := GenCtxWithTables(tables)
 
-	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE NOT(0 OR t0.c0)"), genCtx, tables, map[string]interface{}{
+	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE NOT(0 OR t0.c0)"), genCtx, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): nil,
 	})
 	require.Equal(t, false, isTrueValue(value))
@@ -243,7 +243,7 @@ func TestCase29(t *testing.T) {
 	}}
 	genCtx := GenCtxWithTables(tables)
 
-	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE 1 AND 0.4"), genCtx, tables, map[string]interface{}{
+	value := evaluateRow(parse(t, "SELECT * FROM t0 WHERE 1 AND 0.4"), genCtx, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): false,
 	})
 	require.Equal(t, true, isTrueValue(value))
@@ -267,7 +267,7 @@ func TestCase31(t *testing.T) {
 	}}
 	genCtx := GenCtxWithTables(tables)
 
-	value := evaluateRow(parse(t, "SELECT t0.c0 FROM t0 WHERE (NOT NOT t0.c0) = t0.c0"), genCtx, tables, map[string]interface{}{
+	value := evaluateRow(parse(t, "SELECT t0.c0 FROM t0 WHERE (NOT NOT t0.c0) = t0.c0"), genCtx, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 2,
 	})
 	require.Equal(t, false, isTrueValue(value))
@@ -285,7 +285,7 @@ func TestCase_s01(t *testing.T) {
 	genCtx := GenCtxWithTables(tables)
 
 	value := evaluateRow(parse(t, "SELECT table_int_varchar_text.id,table_int_varchar_text.col_int,table_int_varchar_text.col_varchar,table_int_varchar_text.col_text,table_int_text.id,table_int_text.col_int,table_int_text.col_text FROM table_int_varchar_text JOIN table_int_text WHERE ((table_int_varchar_text.col_varchar!=-1) AND (table_int_varchar_text.col_text>=0e+00))"),
-		genCtx, tables, map[string]interface{}{
+		genCtx, map[string]interface{}{
 			Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_varchar")}.String(): 0,
 			Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_text")}.String():    nil,
 		})
@@ -300,7 +300,7 @@ func TestCase_s02(t *testing.T) {
 	}}
 	genCtx := GenCtxWithTables(tables)
 
-	value := evaluateRow(parse(t, "select * from t0 where !null is NULL"), genCtx, tables, map[string]interface{}{
+	value := evaluateRow(parse(t, "select * from t0 where !null is NULL"), genCtx, map[string]interface{}{
 		Column{Table: CIStr("t0"), Name: CIStr("c0")}.String(): 2,
 	})
 	require.Equal(t, true, isTrueValue(value))
@@ -328,7 +328,7 @@ FROM table_int_varchar_float_text
 WHERE (((!table_int_varchar_float_text.id) XOR (-1
                                                 AND table_int_varchar_float_text.col_float)))
 
-`), genCtx, tables, map[string]interface{}{
+`), genCtx, map[string]interface{}{
 		Column{Table: CIStr("table_inCIStrt_varchar_float_text"), Name: CIStr("id")}.String():   5,
 		Column{Table: CIStr("table_int_varchar_float_text"), Name: CIStr("col_float")}.String(): nil,
 	})
@@ -372,7 +372,7 @@ SELECT table_varchar_float_text.id,
 FROM table_varchar_float_text
 JOIN table_int
 WHERE !((table_varchar_float_text.col_float XOR 15))
-`), genCtx, tables, map[string]interface{}{
+`), genCtx, map[string]interface{}{
 		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("id")}.String():          15,
 		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_varchar")}.String(): true,
 		Column{Table: CIStr("table_varchar_float_text"), Name: CIStr("col_float")}.String():   -0.1,
@@ -418,7 +418,7 @@ FROM (table_int_varchar_text
       JOIN table_float)
 JOIN table_int
 WHERE ((table_int_varchar_text.id XOR 4.0631823313220344e-01) XOR (!table_int_varchar_text.col_text))
-`), genCtx, tables, map[string]interface{}{
+`), genCtx, map[string]interface{}{
 		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("id")}.String():       8,
 		Column{Table: CIStr("table_int_varchar_text"), Name: CIStr("col_text")}.String(): "0",
 	})

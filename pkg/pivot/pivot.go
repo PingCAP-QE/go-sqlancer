@@ -279,7 +279,7 @@ func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 
 	exprs := make([]ast.ExprNode, 0)
 	for x := 0; x < Rd(3)+1; x++ {
-		exprs = append(exprs, p.WhereClauseAst(generator.NewGenCtx(true), 1, []Table{table}))
+		exprs = append(exprs, p.WhereClauseAst(generator.NewGenCtx(true, nil, nil), 1, []Table{table}))
 	}
 	node := ast.CreateIndexStmt{}
 	node.IndexName = "idx_" + RdStringChar(5)
@@ -332,12 +332,12 @@ func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, e
 
 func (p *Pivot) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
 	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, *generator.GenCtx, error) {
-	genCtx := generator.NewGenCtx(false)
-	stmtAst, err := p.SelectStmtAst(genCtx, p.Conf.Depth, usedTables)
+	genCtx := generator.NewGenCtx(false, usedTables, pivotRows)
+	stmtAst, err := p.SelectStmtAst(genCtx, p.Conf.Depth)
 	if err != nil {
 		return nil, "", nil, nil, nil, err
 	}
-	sql, columns, updatedPivotRows, err := p.SelectStmt(&stmtAst, genCtx, usedTables, pivotRows)
+	sql, columns, updatedPivotRows, err := p.SelectStmt(&stmtAst, genCtx)
 	if err != nil {
 		return nil, "", nil, nil, nil, err
 	}
@@ -402,7 +402,7 @@ func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[string]*connect
 	if selectStmt == nil {
 		selectStmt = stmt
 	}
-	p.RectifyCondition(selectStmt.Where, genCtx, usedTable, pivotRows)
+	p.RectifyCondition(selectStmt.Where, genCtx)
 	usedColumns := p.CollectColumnNames(selectStmt.Where)
 	selectStmt.Fields.Fields = make([]*ast.SelectField, 0)
 	for _, column := range usedColumns {
@@ -491,7 +491,7 @@ func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Tab
 
 func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[string]*connection.QueryItem, exist bool, genCtx *generator.GenCtx) bool {
 	where := sel.Where
-	out := generator.Evaluate(where, genCtx, usedTables, pivotRows)
+	out := generator.Evaluate(where, genCtx)
 
 	switch out.Kind() {
 	case tidb_types.KindNull:
