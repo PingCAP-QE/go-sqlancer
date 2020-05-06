@@ -279,7 +279,7 @@ func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 
 	exprs := make([]ast.ExprNode, 0)
 	for x := 0; x < Rd(3)+1; x++ {
-		exprs = append(exprs, p.WhereClauseAst(&generator.GenCtx{true}, 1, []Table{table}))
+		exprs = append(exprs, p.WhereClauseAst(generator.NewGenCtx(true), 1, []Table{table}))
 	}
 	node := ast.CreateIndexStmt{}
 	node.IndexName = "idx_" + RdStringChar(5)
@@ -331,16 +331,16 @@ func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, e
 }
 
 func (p *Pivot) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
-	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, map[string]string, error) {
-	stmtAst, err := p.SelectStmtAst(p.Conf.Depth, usedTables)
+	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, *generator.GenCtx, error) {
+	stmtAst, genCtx, err := p.SelectStmtAst(p.Conf.Depth, usedTables)
 	if err != nil {
 		return nil, "", nil, nil, nil, err
 	}
-	sql, columns, updatedPivotRows, tableMap, err := p.SelectStmt(&stmtAst, usedTables, pivotRows)
+	sql, columns, updatedPivotRows, err := p.SelectStmt(&stmtAst, genCtx, usedTables, pivotRows)
 	if err != nil {
 		return nil, "", nil, nil, nil, err
 	}
-	return &stmtAst, sql, columns, updatedPivotRows, tableMap, nil
+	return &stmtAst, sql, columns, updatedPivotRows, genCtx, nil
 }
 
 func (p *Pivot) ExecAndVerify(stmt *ast.SelectStmt, originRow map[string]*connection.QueryItem, columns []Column) (bool, error) {
@@ -395,13 +395,13 @@ func (p *Pivot) checkRow(originRow map[string]*connection.QueryItem, columns []C
 	return true
 }
 
-func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[string]*connection.QueryItem, usedTable []Table, columns []Column, tableMap map[string]string) (string, error) {
+func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[string]*connection.QueryItem, usedTable []Table, columns []Column, genCtx *generator.GenCtx) (string, error) {
 	selectStmt := p.minifySubquery(stmt, stmt.Where, usedTable, pivotRows, columns)
 	// for those ast that we don't try to simplify
 	if selectStmt == nil {
 		selectStmt = stmt
 	}
-	p.RectifyCondition(selectStmt.Where, usedTable, pivotRows, tableMap)
+	p.RectifyCondition(selectStmt.Where, genCtx, usedTable, pivotRows)
 	usedColumns := p.CollectColumnNames(selectStmt.Where)
 	selectStmt.Fields.Fields = make([]*ast.SelectField, 0)
 	for _, column := range usedColumns {
@@ -488,9 +488,9 @@ func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Tab
 	}
 }
 
-func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[string]*connection.QueryItem, exist bool, tableMap map[string]string) bool {
+func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[string]*connection.QueryItem, exist bool, genCtx *generator.GenCtx) bool {
 	where := sel.Where
-	out := generator.Evaluate(where, usedTables, pivotRows, tableMap)
+	out := generator.Evaluate(where, genCtx, usedTables, pivotRows)
 
 	switch out.Kind() {
 	case tidb_types.KindNull:
