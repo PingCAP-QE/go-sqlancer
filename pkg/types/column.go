@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+
+	"github.com/pingcap/parser/ast"
 )
 
 var (
@@ -25,11 +27,13 @@ var (
 
 // Column defines database column
 type Column struct {
-	Table  CIStr
-	Name   CIStr
-	Type   string
-	Length int
-	Null   bool
+	Table      CIStr
+	AliasTable CIStr
+	Name       CIStr
+	AliasName  CIStr
+	Type       string
+	Length     int
+	Null       bool
 }
 
 func (c Column) String() string {
@@ -53,11 +57,13 @@ func (c Columns) Swap(i, j int) {
 // Clone makes a replica of column
 func (c *Column) Clone() Column {
 	return Column{
-		Table:  c.Table,
-		Name:   c.Name,
-		Type:   c.Type,
-		Length: c.Length,
-		Null:   c.Null,
+		Table:      c.Table,
+		AliasTable: c.AliasTable,
+		Name:       c.Name,
+		AliasName:  c.AliasName,
+		Type:       c.Type,
+		Length:     c.Length,
+		Null:       c.Null,
 	}
 }
 
@@ -76,6 +82,40 @@ func (c *Column) ParseType(t string) {
 	} else {
 		c.Length = 0
 	}
+}
+
+// ToModel converts to ast model
+func (c Column) ToModel() *ast.ColumnNameExpr {
+	table := c.Table
+	if c.AliasTable != "" {
+		table = c.AliasTable
+	}
+	name := c.Name
+	if c.AliasName != "" {
+		name = c.AliasName
+	}
+	return &ast.ColumnNameExpr{
+		Name: &ast.ColumnName{
+			Table: table.ToModel(),
+			Name:  name.ToModel(),
+		},
+	}
+}
+
+// TmpTableName get tmp table name if exist, otherwise origin name
+func (c Column) GetAliasTableName() CIStr {
+	if c.AliasTable != "" {
+		return c.AliasTable
+	}
+	return c.Table
+}
+
+// GetAliasName get alias column name
+func (c Column) GetAliasName() CIStr {
+	if c.AliasName != "" {
+		return c.AliasName
+	}
+	return c.Name
 }
 
 // AddOption add option for column

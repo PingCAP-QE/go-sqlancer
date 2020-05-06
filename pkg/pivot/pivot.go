@@ -193,7 +193,7 @@ func (p *Pivot) progress(ctx context.Context) {
 	}
 	// generate sql ast tree and
 	// generate sql where clause
-	selStmt, selectSQL, columns, err := p.GenSelectStmt(pivotRows, usedTables)
+	_, selectSQL, columns, updatedPivotRows, tableMap, err := p.GenSelectStmt(pivotRows, usedTables)
 	if err != nil {
 		panic(err)
 	}
@@ -204,19 +204,19 @@ func (p *Pivot) progress(ctx context.Context) {
 		return
 	}
 	// verify pivot row in result row set
-	correct := p.verify(pivotRows, columns, resultRows)
+	correct := p.verify(updatedPivotRows, columns, resultRows)
 	fmt.Printf("Round %d, verify result %v!\n", p.round, correct)
 	if !correct {
-		subSQL, err := p.minifySelect(selStmt, pivotRows, usedTables, columns)
-		if err != nil {
-			log.Error("occurred an error when try to simplify select", zap.String("sql", selectSQL), zap.Error(err))
-			fmt.Printf("query:\n%s\n", selectSQL)
-		} else {
-			fmt.Printf("query:\n%s\n", selectSQL)
-			if len(subSQL) < len(selectSQL) {
-				fmt.Printf("sub query:\n%s\n", subSQL)
-			}
-		}
+		// subSQL, err := p.minifySelect(selStmt, pivotRows, usedTables, columns)
+		// if err != nil {
+		// 	log.Error("occurred an error when try to simplify select", zap.String("sql", selectSQL), zap.Error(err))
+		// 	fmt.Printf("query:\n%s\n", selectSQL)
+		// } else {
+		// 	fmt.Printf("query:\n%s\n", selectSQL)
+		// 	if len(subSQL) < len(selectSQL) {
+		// 		fmt.Printf("sub query:\n%s\n", subSQL)
+		// 	}
+		// }
 		fmt.Printf("row:\n")
 		p.printPivotRows(pivotRows)
 		if p.Conf.Silent && p.round >= p.Conf.ViewCount {
@@ -226,7 +226,7 @@ func (p *Pivot) progress(ctx context.Context) {
 	}
 	if p.round <= p.Conf.ViewCount {
 		if err := p.Executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.round), selectSQL, len(resultRows), columns); err != nil {
-			fmt.Println("create view failed")
+			fmt.Println("create view failed", tableMap)
 			panic(err)
 		}
 	}
@@ -279,7 +279,7 @@ func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 
 	exprs := make([]ast.ExprNode, 0)
 	for x := 0; x < Rd(3)+1; x++ {
-		exprs = append(exprs, p.WhereClauseAst(&generator.GenCtx{true}, 1, []Table{table}))
+		exprs = append(exprs, p.WhereClauseAst(generator.NewGenCtx(true, nil, nil), 1, []Table{table}))
 	}
 	node := ast.CreateIndexStmt{}
 	node.IndexName = "idx_" + RdStringChar(5)
@@ -330,16 +330,18 @@ func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, e
 	return result, reallyUsed, nil
 }
 
-func (p *Pivot) GenSelectStmt(pivotRows map[string]*connection.QueryItem, usedTables []Table) (*ast.SelectStmt, string, []Column, error) {
-	stmtAst, err := p.SelectStmtAst(p.Conf.Depth, usedTables)
+func (p *Pivot) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
+	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, *generator.GenCtx, error) {
+	genCtx := generator.NewGenCtx(false, usedTables, pivotRows)
+	stmtAst, err := p.SelectStmtAst(genCtx, p.Conf.Depth)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, nil, nil, err
 	}
-	sql, columns, err := p.SelectStmt(&stmtAst, usedTables, pivotRows)
+	sql, columns, updatedPivotRows, err := p.SelectStmt(&stmtAst, genCtx)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, nil, nil, err
 	}
-	return &stmtAst, sql, columns, nil
+	return &stmtAst, sql, columns, updatedPivotRows, genCtx, nil
 }
 
 func (p *Pivot) ExecAndVerify(stmt *ast.SelectStmt, originRow map[string]*connection.QueryItem, columns []Column) (bool, error) {
@@ -387,20 +389,20 @@ func (p *Pivot) verify(originRow map[string]*connection.QueryItem, columns []Col
 func (p *Pivot) checkRow(originRow map[string]*connection.QueryItem, columns []Column, resultSet []*connection.QueryItem) bool {
 	for i, c := range columns {
 		// fmt.Printf("i: %d, column: %+v, left: %+v, right: %+v", i, c, originRow[c], resultSet[i])
-		if !compareQueryItem(originRow[c.String()], resultSet[i]) {
+		if !compareQueryItem(originRow[c.GetAliasName().String()], resultSet[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[string]*connection.QueryItem, usedTable []Table, columns []Column) (string, error) {
+func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[string]*connection.QueryItem, usedTable []Table, columns []Column, genCtx *generator.GenCtx) (string, error) {
 	selectStmt := p.minifySubquery(stmt, stmt.Where, usedTable, pivotRows, columns)
 	// for those ast that we don't try to simplify
 	if selectStmt == nil {
 		selectStmt = stmt
 	}
-	p.RectifyCondition(selectStmt, usedTable, pivotRows)
+	p.RectifyCondition(selectStmt.Where, genCtx)
 	usedColumns := p.CollectColumnNames(selectStmt.Where)
 	selectStmt.Fields.Fields = make([]*ast.SelectField, 0)
 	for _, column := range usedColumns {
@@ -453,7 +455,8 @@ func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Tab
 			log.L().Error("occurred an error", zap.Error(err))
 			return nil
 		}
-		if !p.verifyExistence(subSelectStmt, usedTable, pivotRows, exist) {
+		// FIXME: tableMap
+		if !p.verifyExistence(subSelectStmt, usedTable, pivotRows, exist, nil) {
 			return subSelectStmt
 		}
 		return nil
@@ -475,7 +478,8 @@ func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Tab
 			log.L().Error("occurred an error", zap.Error(err))
 			return nil
 		}
-		if !p.verifyExistence(subSelectStmt, usedTable, pivotRows, exist) {
+		// FIXME: table map
+		if !p.verifyExistence(subSelectStmt, usedTable, pivotRows, exist, nil) {
 			// pivotRows aren't in sub query stmt, we found a invalid sub query
 			return subSelectStmt
 		}
@@ -485,9 +489,9 @@ func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Tab
 	}
 }
 
-func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[string]*connection.QueryItem, exist bool) bool {
+func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[string]*connection.QueryItem, exist bool, genCtx *generator.GenCtx) bool {
 	where := sel.Where
-	out := generator.Evaluate(where, usedTables, pivotRows)
+	out := generator.Evaluate(where, genCtx)
 
 	switch out.Kind() {
 	case tidb_types.KindNull:
@@ -523,9 +527,9 @@ func (p *Pivot) printPivotRows(pivotRows map[string]*connection.QueryItem) {
 }
 
 func compareQueryItem(left *connection.QueryItem, right *connection.QueryItem) bool {
-	if left.ValType.Name() != right.ValType.Name() {
-		return false
-	}
+	// if left.ValType.Name() != right.ValType.Name() {
+	// 	return false
+	// }
 	if left.Null != right.Null {
 		return false
 	}

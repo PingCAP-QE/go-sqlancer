@@ -24,6 +24,11 @@ func (c CIStr) EqString(s string) bool {
 }
 
 // Eq reports whether CIStr is equal to another CIStr
+func (c CIStr) EqModel(s model.CIStr) bool {
+	return strings.EqualFold(string(c), s.L)
+}
+
+// Eq reports whether CIStr is equal to another CIStr
 func (c CIStr) Eq(s CIStr) bool {
 	return strings.EqualFold(string(c), string(s))
 }
