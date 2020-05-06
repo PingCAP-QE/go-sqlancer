@@ -102,8 +102,8 @@ func (c Column) ToModel() *ast.ColumnNameExpr {
 	}
 }
 
-// TmpTableName get tmp table name
-func (c Column) TmpTableName() CIStr {
+// TmpTableName get tmp table name if exist, otherwise origin name
+func (c Column) GetAliasTableName() CIStr {
 	if c.AliasTable != "" {
 		return c.AliasTable
 	}

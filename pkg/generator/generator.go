@@ -47,25 +47,17 @@ func NewGenCtx(isInExprIndex bool) *GenCtx {
 	}
 }
 
-func (g *GenCtx) resetTmpTable() {
-	g.tmpTableIndex = 0
-}
-
-func (g *GenCtx) getTmpTable() string {
+func (g *GenCtx) createTmpTable() string {
 	g.tmpTableIndex++
 	return fmt.Sprintf("tmp%d", g.tmpTableIndex)
 }
 
-func (g *GenCtx) resetTmpColumn() {
-	g.tmpColIndex = 0
-}
-
-func (g *GenCtx) getTmpColumn() string {
+func (g *GenCtx) createTmpColumn() string {
 	g.tmpColIndex++
 	return fmt.Sprintf("col_%d", g.tmpColIndex)
 }
 
-func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.SelectStmt, *GenCtx, error) {
+func (g *Generator) SelectStmtAst(genCtx *GenCtx, depth int, usedTables []types.Table) (ast.SelectStmt, error) {
 	selectStmtNode := ast.SelectStmt{
 		SelectStmtOpts: &ast.SelectStmtOpts{
 			SQLCache: true,
@@ -74,7 +66,6 @@ func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.Sele
 			Fields: []*ast.SelectField{},
 		},
 	}
-	genCtx := NewGenCtx(false)
 
 	selectStmtNode.Where = g.WhereClauseAst(genCtx, depth, usedTables)
 
@@ -85,7 +76,7 @@ func (g *Generator) SelectStmtAst(depth int, usedTables []types.Table) (ast.Sele
 		},
 	}
 	selectStmtNode.TableHints = g.tableHintsExpr(usedTables)
-	return selectStmtNode, genCtx, nil
+	return selectStmtNode, nil
 }
 
 func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int, usedTables []types.Table) ast.ExprNode {
@@ -262,7 +253,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 	colName, typeStr := randColumn.Name, randColumn.Type
 	col := new(ast.ColumnNameExpr)
 	col.Name = &ast.ColumnName{
-		Table: randTable.TmpTableName().ToModel(),
+		Table: randTable.GetAliasName().ToModel(),
 		Name:  colName.ToModel(),
 	}
 	col.Type = parser_types.FieldType{}
@@ -273,7 +264,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 // walk on select stmt
 func (g *Generator) SelectStmt(node *ast.SelectStmt, genCtx *GenCtx, usedTables []types.Table,
 	pivotRows map[string]*connection.QueryItem) (string, []types.Column, map[string]*connection.QueryItem, error) {
-	g.walkResultSetNode(node.From.TableRefs, usedTables)
+	g.genResultSetNode(node.From.TableRefs, usedTables)
 	g.RectifyResultSetNode(node.From.TableRefs, genCtx, usedTables, pivotRows)
 	// if node.From.TableRefs.Right == nil && node.From.TableRefs.Left != nil {
 	// 	table = s.walkResultSetNode(node.From.TableRefs.Left)
@@ -441,7 +432,7 @@ func (g *Generator) RectifyJoin(node *ast.Join, genCtx *GenCtx, usedTables []typ
 				if tn, ok := node.Source.(*ast.TableName); ok {
 					for _, table := range usedTables {
 						if table.Name.EqModel(tn.Name) {
-							tmpTable := genCtx.getTmpTable()
+							tmpTable := genCtx.createTmpTable()
 							node.AsName = model.NewCIStr(tmpTable)
 							leftTables = []types.Table{table.Rename(tmpTable)}
 							genCtx.TableAlias[table.Name.String()] = tmpTable
@@ -455,7 +446,7 @@ func (g *Generator) RectifyJoin(node *ast.Join, genCtx *GenCtx, usedTables []typ
 		}
 		for _, table := range usedTables {
 			if table.Name.EqModel(right.Source.(*ast.TableName).Name) {
-				tmpTable := genCtx.getTmpTable()
+				tmpTable := genCtx.createTmpTable()
 				right.AsName = model.NewCIStr(tmpTable)
 				rightTable = table.Rename(tmpTable)
 				genCtx.TableAlias[table.Name.String()] = tmpTable
@@ -503,7 +494,7 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx, resul
 	rows := make(map[string]*connection.QueryItem)
 	for _, table := range resultTables {
 		for _, column := range table.Columns {
-			asname := genCtx.getTmpColumn()
+			asname := genCtx.createTmpColumn()
 			selectField := ast.SelectField{
 				Expr:   column.ToModel(),
 				AsName: model.NewCIStr(asname),
@@ -525,7 +516,7 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx, resul
 	return columns, rows
 }
 
-func (g *Generator) walkResultSetNode(node *ast.Join, usedTables []types.Table) {
+func (g *Generator) genResultSetNode(node *ast.Join, usedTables []types.Table) {
 	l := len(usedTables)
 	var left *ast.Join = node
 	// TODO: it works, but need to refactory

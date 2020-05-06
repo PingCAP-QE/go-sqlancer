@@ -332,7 +332,8 @@ func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, e
 
 func (p *Pivot) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
 	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, *generator.GenCtx, error) {
-	stmtAst, genCtx, err := p.SelectStmtAst(p.Conf.Depth, usedTables)
+	genCtx := generator.NewGenCtx(false)
+	stmtAst, err := p.SelectStmtAst(genCtx, p.Conf.Depth, usedTables)
 	if err != nil {
 		return nil, "", nil, nil, nil, err
 	}

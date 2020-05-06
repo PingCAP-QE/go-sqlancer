@@ -77,8 +77,8 @@ func (a Table) JoinWithName(b Table, name string) Table {
 	}
 }
 
-// TmpTableName get tmp table name
-func (t Table) TmpTableName() CIStr {
+// GetAliasName get tmp table name, otherwise origin name
+func (t Table) GetAliasName() CIStr {
 	if t.AliasName != "" {
 		return t.AliasName
 	}
