@@ -11,6 +11,7 @@ import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/generator/operator"
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
+	"github.com/juju/errors"
 
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
@@ -39,7 +40,7 @@ func (g *Generator) SelectStmtAst(genCtx *GenCtx, depth int) (ast.SelectStmt, er
 		},
 	}
 
-	selectStmtNode.Where = g.WhereClauseAst(genCtx, depth, genCtx.UsedTables)
+	selectStmtNode.Where = g.WhereClauseAst(genCtx, depth)
 
 	selectStmtNode.From = &ast.TableRefsClause{
 		TableRefs: &ast.Join{
@@ -51,7 +52,7 @@ func (g *Generator) SelectStmtAst(genCtx *GenCtx, depth int) (ast.SelectStmt, er
 	return selectStmtNode, nil
 }
 
-func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int, usedTables []types.Table) ast.ExprNode {
+func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int) ast.ExprNode {
 	// TODO: support single operation like NOT
 	// TODO: support func
 	// TODO: support subquery
@@ -60,15 +61,15 @@ func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int, usedTables []types.Ta
 	pthese := ast.ParenthesesExpr{}
 	switch Rd(4) {
 	case 0:
-		g.makeUnaryOp(ctx, &pthese, depth, usedTables)
+		g.makeUnaryOp(ctx, &pthese, depth)
 	default:
-		g.makeBinaryOp(ctx, &pthese, depth, usedTables)
+		g.makeBinaryOp(ctx, &pthese, depth)
 	}
 	return &pthese
 }
 
 // change ParenthesesExpr to more extensive
-func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int, usedTables []types.Table) {
+func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int) {
 	node := ast.BinaryOperationExpr{}
 	e.Expr = &node
 	if depth > 0 {
@@ -80,8 +81,8 @@ func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int,
 		case *types.Fn:
 			panic("not implement binary functions")
 		}
-		node.L = g.WhereClauseAst(ctx, depth-1, usedTables)
-		node.R = g.WhereClauseAst(ctx, Rd(depth), usedTables)
+		node.L = g.WhereClauseAst(ctx, depth-1)
+		node.R = g.WhereClauseAst(ctx, Rd(depth))
 	} else {
 		f := operator.BinaryOps.Rand()
 		switch t := f.(type) {
@@ -95,11 +96,15 @@ func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int,
 		if ctx.IsInExprIndex { // avoid string ops in CREATE INDEX stmt
 			acceptType &^= types.DatetimeArg | types.StringArg
 		}
+		var err error
 		if Rd(3) > 0 {
-			node.L = g.columnExpr(usedTables, acceptType)
+			node.L, err = g.ColumnExpr(ctx.UsedTables, acceptType)
+			if err != nil {
+				panic(errors.Trace(err))
+			}
 			argType = TransMysqlType(node.L.GetType())
 		} else {
-			node.L = g.constValueExpr(acceptType)
+			node.L = g.ConstValueExpr(acceptType)
 			argType = TransMysqlType(node.L.GetType())
 		}
 		acceptType = f.GetAcceptType(0, argType)
@@ -107,21 +112,24 @@ func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int,
 			acceptType &^= types.StringArg // clear string type from accept types
 		}
 		if Rd(3) > 0 {
-			node.R = g.columnExpr(usedTables, acceptType)
+			node.R, err = g.ColumnExpr(ctx.UsedTables, acceptType)
+			if err != nil {
+				panic(errors.Trace(err))
+			}
 		} else {
-			node.R = g.constValueExpr(acceptType)
+			node.R = g.ConstValueExpr(acceptType)
 		}
 	}
 }
 
-func (g *Generator) makeUnaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int, usedTables []types.Table) {
+func (g *Generator) makeUnaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int) {
 	node := ast.UnaryOperationExpr{}
 	e.Expr = &node
 	if depth > 0 {
 		switch Rd(1) {
 		default:
 			node.Op = opcode.Not
-			node.V = g.WhereClauseAst(ctx, depth-1, usedTables)
+			node.V = g.WhereClauseAst(ctx, depth-1)
 		}
 	} else {
 		switch Rd(1) {
@@ -133,16 +141,20 @@ func (g *Generator) makeUnaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int, 
 			}
 			// no need to check params number
 			if Rd(3) > 0 {
-				node.V = g.columnExpr(usedTables, arg)
+				var err error
+				node.V, err = g.ColumnExpr(ctx.UsedTables, arg)
+				if err != nil {
+					panic(errors.Trace(err))
+				}
 			} else {
-				node.V = g.constValueExpr(arg)
+				node.V = g.ConstValueExpr(arg)
 			}
 		}
 	}
 }
 
 // TODO: important! resolve random when a kind was banned
-func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
+func (g *Generator) ConstValueExpr(arg int) ast.ValueExpr {
 	switch x := Rd(13); x {
 	case 6, 7, 8, 9, 10:
 		if arg&types.FloatArg != 0 {
@@ -204,13 +216,13 @@ func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
 		// NULL?
 		if arg&types.NullArg == 0 {
 			// generate again
-			return g.constValueExpr(arg)
+			return g.ConstValueExpr(arg)
 		}
 		return ast.NewValueExpr(nil, "", "")
 	}
 }
 
-func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNameExpr {
+func (g *Generator) ColumnExpr(usedTables []types.Table, arg int) (*ast.ColumnNameExpr, error) {
 	randTable := usedTables[Rd(len(usedTables))]
 	tempCols := make([]types.Column, 0)
 	for i := range randTable.Columns {
@@ -219,7 +231,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 		}
 	}
 	if len(tempCols) == 0 {
-		panic(fmt.Sprintf("no valid column as arg %d table %s", arg, randTable.Name))
+		return nil, errors.New(fmt.Sprintf("no valid column as arg %d table %s", arg, randTable.Name))
 	}
 	randColumn := tempCols[Rd(len(tempCols))]
 	colName, typeStr := randColumn.Name, randColumn.Type
@@ -230,12 +242,12 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 	}
 	col.Type = parser_types.FieldType{}
 	col.SetType(tidb_types.NewFieldType(TransToMysqlType(TransStringType(typeStr))))
-	return col
+	return col, nil
 }
 
 // walk on select stmt
 func (g *Generator) SelectStmt(node *ast.SelectStmt, genCtx *GenCtx) (string, []types.Column, map[string]*connection.QueryItem, error) {
-	g.genResultSetNode(node.From.TableRefs, genCtx)
+	g.GenResultSetNode(node.From.TableRefs, genCtx)
 	g.genJoin(node.From.TableRefs, genCtx)
 	// if node.From.TableRefs.Right == nil && node.From.TableRefs.Left != nil {
 	// 	table = s.walkResultSetNode(node.From.TableRefs.Left)
@@ -408,9 +420,15 @@ func (g *Generator) genJoin(node *ast.Join, genCtx *GenCtx) {
 			panic("unreachable")
 		}
 		allTables := append(leftTables, rightTable)
+		usedTables := genCtx.UsedTables
 		genCtx.ResultTables = allTables
+		genCtx.UsedTables = allTables
 		node.On = &ast.OnCondition{}
-		node.On.Expr = g.WhereClauseAst(genCtx, 0, allTables)
+		// for _, table := range genCtx.ResultTables {
+		// 	fmt.Println(table.Name, table.AliasName)
+		// }
+		node.On.Expr = g.WhereClauseAst(genCtx, 0)
+		genCtx.UsedTables = usedTables
 		return
 	}
 
@@ -494,7 +512,7 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx) ([]ty
 	return columns, rows
 }
 
-func (g *Generator) genResultSetNode(node *ast.Join, genCtx *GenCtx) {
+func (g *Generator) GenResultSetNode(node *ast.Join, genCtx *GenCtx) {
 	usedTables := genCtx.UsedTables
 	l := len(usedTables)
 	var left *ast.Join = node
@@ -509,13 +527,17 @@ func (g *Generator) genResultSetNode(node *ast.Join, genCtx *GenCtx) {
 	}
 	for i := l - 1; i >= 1; i-- {
 		var tp ast.JoinType
-		switch Rd(3) {
-		case 0:
-			tp = ast.RightJoin
-		case 1:
-			tp = ast.LeftJoin
-		default:
+		if !genCtx.EnableLeftRightJoin {
 			tp = ast.CrossJoin
+		} else {
+			switch Rd(3) {
+			case 0:
+				tp = ast.RightJoin
+			case 1:
+				tp = ast.LeftJoin
+			default:
+				tp = ast.CrossJoin
+			}
 		}
 
 		ts := ast.TableSource{}

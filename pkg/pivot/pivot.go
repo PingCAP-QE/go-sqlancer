@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
 	"github.com/chaos-mesh/go-sqlancer/pkg/executor"
 	"github.com/chaos-mesh/go-sqlancer/pkg/generator"
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
@@ -36,6 +38,8 @@ type Pivot struct {
 	DB       *sql.DB
 	Executor *executor.Executor
 	round    int
+	batch    int
+	inWrite  sync.RWMutex
 
 	generator.Generator
 }
@@ -52,13 +56,6 @@ func NewPivot(conf *Config) (*Pivot, error) {
 		Generator: generator.Generator{Config: generator.Config{Hint: conf.Hint}},
 	}, nil
 }
-
-const (
-	tableSQL        = "DESC %s.%s"
-	indexSQL        = "SHOW INDEX FROM %s.%s"
-	schemaSQL       = "SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE FROM information_schema.tables"
-	indexColumnName = "Key_name"
-)
 
 // Start Pivot
 func (p *Pivot) Start(ctx context.Context) {
@@ -140,28 +137,177 @@ func (p *Pivot) prepare(ctx context.Context) {
 		}
 	}
 
+	p.LoadSchema(ctx)
+
+	if err := p.Executor.GetConn().Begin(); err != nil {
+		log.L().Error("begin txn failed", zap.Error(err))
+		return
+	}
 	for _, table := range p.Executor.GetTables() {
-		sql, err := p.Executor.GenerateDMLInsertByTable(table.Name.String())
-		if err != nil {
-			panic(errors.ErrorStack(err))
+		insertData := func() {
+			sql, err := p.Executor.GenerateDMLInsertByTable(table.Name.String())
+			if err != nil {
+				panic(errors.ErrorStack(err))
+			}
+			err = p.Executor.Exec(sql.SQLStmt)
+			if err != nil {
+				log.L().Error("insert data failed", zap.String("sql", sql.SQLStmt), zap.Error(err))
+			}
 		}
-		err = p.Executor.Exec(sql.SQLStmt)
-		if err != nil {
-			log.L().Error("insert data failed", zap.String("sql", sql.SQLStmt), zap.Error(err))
+		insertData()
+
+		// update or delete
+		for i := Rd(4); i > 0; i-- {
+			_, tables, err := p.ChoosePivotedRow(false)
+
+			if err != nil {
+				panic(errors.Trace(err))
+			}
+			if len(tables) == 0 {
+				log.L().Panic("tables random by ChoosePivotedRow is empty")
+			}
+			var dmlStmt string
+			switch Rd(2) {
+			case 0:
+				dmlStmt, err = p.GenerateDeleteDMLStmt(tables, *table)
+				if err != nil {
+					// TODO: goto next generation
+					log.L().Error("generate delete stmt failed", zap.Error(err))
+				}
+			default:
+				dmlStmt, err = p.GenerateUpdateDMLStmt(tables, *table)
+				if err != nil {
+					// TODO: goto next generation
+					log.L().Error("generate update stmt failed", zap.Error(err))
+				}
+			}
+			log.L().Info("Update/Delete statement", zap.String(table.Name.String(), dmlStmt))
+			err = p.Executor.Exec(dmlStmt)
+			if err != nil {
+				log.L().Error("update/delete data failed", zap.String("sql", dmlStmt), zap.Error(err))
+				panic(err)
+			}
 		}
+
+		countSQL := "select count(*) from " + table.Name.String()
+		qi, err := p.Executor.GetConn().Select(countSQL)
+		if err != nil {
+			log.L().Error("insert data failed", zap.String("sql", countSQL), zap.Error(err))
+		}
+		count := qi[0][0].ValString
+		if p.Conf.Debug {
+			log.L().Debug("table check records count", zap.String(table.Name.String(), count))
+		}
+
+		if c, _ := strconv.ParseUint(count, 10, 64); c == 0 {
+			log.L().Info(table.Name.String() + " is empty after DELETE")
+			insertData()
+		}
+	}
+	if err := p.Executor.GetConn().Commit(); err != nil {
+		log.L().Error("commit txn failed", zap.Error(err))
+		return
+	}
+}
+
+// NOTICE: not support multi-table update
+func (p *Pivot) GenerateUpdateDMLStmt(tables []types.Table, cTable Table) (string, error) {
+	node := &ast.UpdateStmt{}
+	for _, t := range tables {
+		if t.Name.Eq(cTable.Name) {
+			goto GCTX_UPDATE
+		}
+	}
+	tables = append(tables, cTable)
+GCTX_UPDATE:
+	gCtx := generator.NewGenCtx(false, true, tables, nil)
+	node.Where = p.WhereClauseAst(gCtx, 1)
+	node.IgnoreErr = true
+	node.TableRefs = &ast.TableRefsClause{TableRefs: &ast.Join{}}
+	p.GenResultSetNode(node.TableRefs.TableRefs, gCtx)
+	node.List = make([]*ast.Assignment, 0)
+	for i := Rd(3) + 1; i > 0; i-- {
+		asn := ast.Assignment{}
+		// remove id col
+		tmpCols := make(Columns, len(cTable.Columns))
+		copy(tmpCols, cTable.Columns)
+		cTable.Columns = make(Columns, 0)
+		for _, c := range tmpCols {
+			if !strings.HasPrefix(c.Name.String(), "id") {
+				cTable.Columns = append(cTable.Columns, c)
+			}
+		}
+		col := cTable.RandColumn()
+		// restore cols
+		cTable.Columns = tmpCols
+
+		asn.Column = col.ToModel().Name
+		argTp := TransStringType(col.Type)
+		if RdBool() {
+			asn.Expr = p.ConstValueExpr(argTp)
+		} else {
+			var err error
+			asn.Expr, err = p.ColumnExpr(tables, argTp)
+			if err != nil {
+				log.L().Warn("columnExpr returns error", zap.Error(err))
+				asn.Expr = p.ConstValueExpr(argTp)
+			}
+		}
+		node.List = append(node.List, &asn)
+	}
+	// TODO: add hints
+
+	if sql, err := BufferOut(node); err != nil {
+		return "", errors.Trace(err)
+	} else {
+		return sql, nil
+	}
+}
+
+// NOTICE: not support multi-table delete
+func (p *Pivot) GenerateDeleteDMLStmt(tables []types.Table, cTable Table) (string, error) {
+	node := &ast.DeleteStmt{}
+	for _, t := range tables {
+		if t.Name.Eq(cTable.Name) {
+			goto GCTX_DELETE
+		}
+	}
+	tables = append(tables, cTable)
+GCTX_DELETE:
+	gCtx := generator.NewGenCtx(false, true, tables, nil)
+	node.Where = p.WhereClauseAst(gCtx, 1)
+	node.IgnoreErr = true
+	node.IsMultiTable = true
+	node.BeforeFrom = true
+	node.TableRefs = &ast.TableRefsClause{TableRefs: &ast.Join{}}
+	p.GenResultSetNode(node.TableRefs.TableRefs, gCtx)
+	// random some tables in UsedTables to be delete
+	// deletedTables := tables[:RdRange(1, int64(len(tables)))]
+	node.Tables = &ast.DeleteTableList{}
+	node.Tables.Tables = make([]*ast.TableName, 0)
+	node.Tables.Tables = append(node.Tables.Tables, &ast.TableName{Name: cTable.Name.ToModel()})
+	// fmt.Printf("%+v", node.Tables.Tables[0])
+	// for _, t := range deletedTables {
+	// 	node.Tables.Tables = append(node.Tables.Tables, &ast.TableName{Name: t.Name.ToModel()})
+	// }
+	// TODO: add hint
+
+	if sql, err := BufferOut(node); err != nil {
+		return "", errors.Trace(err)
+	} else {
+		return sql, nil
 	}
 }
 
 func (p *Pivot) cleanup(ctx context.Context) {
-	p.Executor.Exec("drop database if exists " + p.Conf.DBName)
-	p.Executor.Exec("create database " + p.Conf.DBName)
-	p.Executor.Exec("use " + p.Conf.DBName)
+	_ = p.Executor.Exec("drop database if exists " + p.Conf.DBName)
+	_ = p.Executor.Exec("create database " + p.Conf.DBName)
+	_ = p.Executor.Exec("use " + p.Conf.DBName)
 }
 
 func (p *Pivot) kickup(ctx context.Context) {
 	p.wg.Add(1)
 	p.prepare(ctx)
-	p.LoadSchema(ctx)
 	if p.Conf.ExprIndex {
 		p.addExprIndex()
 		// reload indexes created
@@ -178,6 +324,11 @@ func (p *Pivot) kickup(ctx context.Context) {
 				for {
 					p.round++
 					p.progress(ctx)
+					if p.round > 100 {
+						p.changeData(ctx)
+						p.round = 0
+						p.batch++
+					}
 				}
 			}
 		}
@@ -186,8 +337,13 @@ func (p *Pivot) kickup(ctx context.Context) {
 }
 
 func (p *Pivot) progress(ctx context.Context) {
+	p.inWrite.RLock()
+	defer func() {
+		p.inWrite.RUnlock()
+	}()
+
 	// rand one pivot row for one table
-	pivotRows, usedTables, err := p.ChoosePivotedRow()
+	pivotRows, usedTables, err := p.ChoosePivotedRow(true)
 	if err != nil {
 		panic(err)
 	}
@@ -198,6 +354,24 @@ func (p *Pivot) progress(ctx context.Context) {
 		panic(err)
 	}
 	// execute sql, ensure not null result set
+	if RdBool() {
+		if err = p.Executor.GetConn().Begin(); err != nil {
+			log.L().Error("begin txn failed", zap.Error(err))
+			return
+		}
+		if p.Conf.Debug {
+			log.L().Debug("begin txn success")
+		}
+		defer func() {
+			if err = p.Executor.GetConn().Commit(); err != nil {
+				log.L().Error("commit txn failed", zap.Error(err))
+				return
+			}
+			if p.Conf.Debug {
+				log.L().Debug("commit txn success")
+			}
+		}()
+	}
 	resultRows, err := p.execSelect(selectSQL)
 	if err != nil {
 		log.L().Error("execSelect failed", zap.Error(err))
@@ -205,7 +379,7 @@ func (p *Pivot) progress(ctx context.Context) {
 	}
 	// verify pivot row in result row set
 	correct := p.verify(updatedPivotRows, columns, resultRows)
-	fmt.Printf("Round %d, verify result %v!\n", p.round, correct)
+	fmt.Printf("Batch %d, Round %d, verify result %v!\n", p.batch, p.round, correct)
 	if !correct {
 		// subSQL, err := p.minifySelect(selStmt, pivotRows, usedTables, columns)
 		// if err != nil {
@@ -279,7 +453,7 @@ func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 
 	exprs := make([]ast.ExprNode, 0)
 	for x := 0; x < Rd(3)+1; x++ {
-		exprs = append(exprs, p.WhereClauseAst(generator.NewGenCtx(true, nil, nil), 1, []Table{table}))
+		exprs = append(exprs, p.WhereClauseAst(generator.NewGenCtx(false, true, []Table{table}, nil), 1))
 	}
 	node := ast.CreateIndexStmt{}
 	node.IndexName = "idx_" + RdStringChar(5)
@@ -298,7 +472,7 @@ func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 
 // ChoosePivotedRow choose a row
 // it may move to another struct
-func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, error) {
+func (p *Pivot) ChoosePivotedRow(skipEmpty bool) (map[string]*connection.QueryItem, []Table, error) {
 	result := make(map[string]*connection.QueryItem)
 	count := 1
 	if len(p.Tables) > 1 {
@@ -308,7 +482,13 @@ func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, e
 		}
 	}
 	rand.Shuffle(len(p.Tables), func(i, j int) { p.Tables[i], p.Tables[j] = p.Tables[j], p.Tables[i] })
-	usedTables := p.Tables[:count]
+	usedTables := make([]Table, count)
+	copy(usedTables, p.Tables[:count])
+
+	// for delete or update stmt which doesn't care pivot row
+	if !skipEmpty {
+		return nil, usedTables, nil
+	}
 	var reallyUsed []Table
 
 	for _, i := range usedTables {
@@ -332,7 +512,7 @@ func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, e
 
 func (p *Pivot) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
 	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, *generator.GenCtx, error) {
-	genCtx := generator.NewGenCtx(false, usedTables, pivotRows)
+	genCtx := generator.NewGenCtx(true, false, usedTables, pivotRows)
 	stmtAst, err := p.SelectStmtAst(genCtx, p.Conf.Depth)
 	if err != nil {
 		return nil, "", nil, nil, nil, err
@@ -535,4 +715,21 @@ func compareQueryItem(left *connection.QueryItem, right *connection.QueryItem) b
 	}
 
 	return (left.Null && right.Null) || (left.ValString == right.ValString)
+}
+
+func (p *Pivot) changeData(ctx context.Context) {
+	p.inWrite.Lock()
+	defer func() {
+		p.inWrite.Unlock()
+	}()
+	if p.Conf.Debug {
+		fmt.Println("refresh database")
+	}
+	p.cleanup(ctx)
+	p.prepare(ctx)
+	if p.Conf.ExprIndex {
+		p.addExprIndex()
+		// reload indexes created
+		p.LoadSchema(ctx)
+	}
 }
