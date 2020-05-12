@@ -13,8 +13,6 @@ import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 	"github.com/juju/errors"
-	"go.uber.org/zap"
-
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
@@ -24,6 +22,8 @@ import (
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
+
+	"go.uber.org/zap"
 )
 
 type Generator struct {
@@ -426,12 +426,14 @@ func (g *Generator) genJoin(node *ast.Join, genCtx *GenCtx) {
 		usedTables := genCtx.UsedTables
 		genCtx.ResultTables = allTables
 		genCtx.UsedTables = allTables
+		defer func() {
+			genCtx.UsedTables = usedTables
+		}()
 		node.On = &ast.OnCondition{}
 		// for _, table := range genCtx.ResultTables {
 		// 	fmt.Println(table.Name, table.AliasName)
 		// }
 		node.On.Expr = g.WhereClauseAst(genCtx, 0)
-		genCtx.UsedTables = usedTables
 		return
 	}
 
@@ -632,35 +634,36 @@ func (v *columnNameVisitor) Leave(in ast.Node) (out ast.Node, ok bool) {
 }
 
 // NOTICE: not support multi-table update
-func (g *Generator) GenerateUpdateDMLStmt(tables []types.Table, cTable types.Table) (string, error) {
-	node := &ast.UpdateStmt{}
+func (g *Generator) GenerateUpdateDMLStmt(tables []types.Table, currTable types.Table) (string, error) {
 	for _, t := range tables {
-		if t.Name.Eq(cTable.Name) {
+		if t.Name.Eq(currTable.Name) {
 			goto GCTX_UPDATE
 		}
 	}
-	tables = append(tables, cTable)
+	tables = append(tables, currTable)
 GCTX_UPDATE:
 	gCtx := NewGenCtx(false, true, tables, nil)
-	node.Where = g.WhereClauseAst(gCtx, 1)
-	node.IgnoreErr = true
-	node.TableRefs = &ast.TableRefsClause{TableRefs: &ast.Join{}}
+	node := &ast.UpdateStmt{
+		Where:     g.WhereClauseAst(gCtx, 1),
+		IgnoreErr: true,
+		TableRefs: &ast.TableRefsClause{TableRefs: &ast.Join{}},
+		List:      make([]*ast.Assignment, 0),
+	}
 	g.GenResultSetNode(node.TableRefs.TableRefs, gCtx)
-	node.List = make([]*ast.Assignment, 0)
+
+	// remove id col
+	tempTable := currTable.Clone()
+	currTable.Columns = make([]types.Column, 0)
+	for _, c := range tempTable.Columns {
+		if !strings.HasPrefix(c.Name.String(), "id") {
+			currTable.Columns = append(currTable.Columns, c)
+		}
+	}
+
+	// number of SET assignments
 	for i := Rd(3) + 1; i > 0; i-- {
 		asn := ast.Assignment{}
-		// remove id col
-		tmpCols := make(types.Columns, len(cTable.Columns))
-		copy(tmpCols, cTable.Columns)
-		cTable.Columns = make(types.Columns, 0)
-		for _, c := range tmpCols {
-			if !strings.HasPrefix(c.Name.String(), "id") {
-				cTable.Columns = append(cTable.Columns, c)
-			}
-		}
-		col := cTable.RandColumn()
-		// restore cols
-		cTable.Columns = tmpCols
+		col := currTable.RandColumn()
 
 		asn.Column = col.ToModel().Name
 		argTp := TransStringType(col.Type)
@@ -686,27 +689,28 @@ GCTX_UPDATE:
 }
 
 // NOTICE: not support multi-table delete
-func (g *Generator) GenerateDeleteDMLStmt(tables []types.Table, cTable types.Table) (string, error) {
-	node := &ast.DeleteStmt{}
+func (g *Generator) GenerateDeleteDMLStmt(tables []types.Table, currTable types.Table) (string, error) {
 	for _, t := range tables {
-		if t.Name.Eq(cTable.Name) {
+		if t.Name.Eq(currTable.Name) {
 			goto GCTX_DELETE
 		}
 	}
-	tables = append(tables, cTable)
+	tables = append(tables, currTable)
 GCTX_DELETE:
 	gCtx := NewGenCtx(false, true, tables, nil)
-	node.Where = g.WhereClauseAst(gCtx, 1)
-	node.IgnoreErr = true
-	node.IsMultiTable = true
-	node.BeforeFrom = true
-	node.TableRefs = &ast.TableRefsClause{TableRefs: &ast.Join{}}
+	node := &ast.DeleteStmt{
+		Where:        g.WhereClauseAst(gCtx, 1),
+		IgnoreErr:    true,
+		IsMultiTable: true,
+		BeforeFrom:   true,
+		TableRefs:    &ast.TableRefsClause{TableRefs: &ast.Join{}},
+		Tables: &ast.DeleteTableList{
+			Tables: []*ast.TableName{{Name: currTable.Name.ToModel()}},
+		},
+	}
 	g.GenResultSetNode(node.TableRefs.TableRefs, gCtx)
 	// random some tables in UsedTables to be delete
 	// deletedTables := tables[:RdRange(1, int64(len(tables)))]
-	node.Tables = &ast.DeleteTableList{}
-	node.Tables.Tables = make([]*ast.TableName, 0)
-	node.Tables.Tables = append(node.Tables.Tables, &ast.TableName{Name: cTable.Name.ToModel()})
 	// fmt.Printf("%+v", node.Tables.Tables[0])
 	// for _, t := range deletedTables {
 	// 	node.Tables.Tables = append(node.Tables.Tables, &ast.TableName{Name: t.Name.ToModel()})
