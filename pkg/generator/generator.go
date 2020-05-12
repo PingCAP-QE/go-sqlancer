@@ -652,18 +652,17 @@ GCTX_UPDATE:
 	g.GenResultSetNode(node.TableRefs.TableRefs, gCtx)
 
 	// remove id col
-	tempTable := currTable.Clone()
-	currTable.Columns = make([]types.Column, 0)
-	for _, c := range tempTable.Columns {
+	tempColumns := make(types.Columns, 0)
+	for _, c := range currTable.Columns {
 		if !strings.HasPrefix(c.Name.String(), "id") {
-			currTable.Columns = append(currTable.Columns, c)
+			tempColumns = append(tempColumns, c)
 		}
 	}
 
 	// number of SET assignments
 	for i := Rd(3) + 1; i > 0; i-- {
 		asn := ast.Assignment{}
-		col := currTable.RandColumn()
+		col := tempColumns.RandColumn()
 
 		asn.Column = col.ToModel().Name
 		argTp := TransStringType(col.Type)

@@ -15,6 +15,7 @@ package types
 
 import (
 	"fmt"
+	"math/rand"
 	"regexp"
 	"strconv"
 
@@ -116,6 +117,13 @@ func (c Column) GetAliasName() CIStr {
 		return c.AliasName
 	}
 	return c.Name
+}
+
+func (cs Columns) RandColumn() Column {
+	if len(cs) == 0 {
+		panic("no columns in table")
+	}
+	return cs[rand.Intn(len(cs))]
 }
 
 // AddOption add option for column
