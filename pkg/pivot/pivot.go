@@ -23,7 +23,6 @@ import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
 	"github.com/chaos-mesh/go-sqlancer/pkg/executor"
 	"github.com/chaos-mesh/go-sqlancer/pkg/generator"
-	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
@@ -74,7 +73,6 @@ func (p *Pivot) LoadSchema(ctx context.Context) {
 	rand.Seed(time.Now().UnixNano())
 	p.Tables = make([]Table, 0)
 
-	// Warn: Hard code db name
 	tables, err := p.Executor.GetConn().FetchTables(p.Conf.DBName)
 	if err != nil {
 		panic(err)
@@ -158,7 +156,7 @@ func (p *Pivot) prepare(ctx context.Context) {
 
 		// update or delete
 		for i := Rd(4); i > 0; i-- {
-			_, tables, err := p.ChoosePivotedRow(false)
+			tables := p.randTables()
 
 			if err != nil {
 				panic(errors.Trace(err))
@@ -210,95 +208,6 @@ func (p *Pivot) prepare(ctx context.Context) {
 	}
 }
 
-// NOTICE: not support multi-table update
-func (p *Pivot) GenerateUpdateDMLStmt(tables []types.Table, cTable Table) (string, error) {
-	node := &ast.UpdateStmt{}
-	for _, t := range tables {
-		if t.Name.Eq(cTable.Name) {
-			goto GCTX_UPDATE
-		}
-	}
-	tables = append(tables, cTable)
-GCTX_UPDATE:
-	gCtx := generator.NewGenCtx(false, true, tables, nil)
-	node.Where = p.WhereClauseAst(gCtx, 1)
-	node.IgnoreErr = true
-	node.TableRefs = &ast.TableRefsClause{TableRefs: &ast.Join{}}
-	p.GenResultSetNode(node.TableRefs.TableRefs, gCtx)
-	node.List = make([]*ast.Assignment, 0)
-	for i := Rd(3) + 1; i > 0; i-- {
-		asn := ast.Assignment{}
-		// remove id col
-		tmpCols := make(Columns, len(cTable.Columns))
-		copy(tmpCols, cTable.Columns)
-		cTable.Columns = make(Columns, 0)
-		for _, c := range tmpCols {
-			if !strings.HasPrefix(c.Name.String(), "id") {
-				cTable.Columns = append(cTable.Columns, c)
-			}
-		}
-		col := cTable.RandColumn()
-		// restore cols
-		cTable.Columns = tmpCols
-
-		asn.Column = col.ToModel().Name
-		argTp := TransStringType(col.Type)
-		if RdBool() {
-			asn.Expr = p.ConstValueExpr(argTp)
-		} else {
-			var err error
-			asn.Expr, err = p.ColumnExpr(tables, argTp)
-			if err != nil {
-				log.L().Warn("columnExpr returns error", zap.Error(err))
-				asn.Expr = p.ConstValueExpr(argTp)
-			}
-		}
-		node.List = append(node.List, &asn)
-	}
-	// TODO: add hints
-
-	if sql, err := BufferOut(node); err != nil {
-		return "", errors.Trace(err)
-	} else {
-		return sql, nil
-	}
-}
-
-// NOTICE: not support multi-table delete
-func (p *Pivot) GenerateDeleteDMLStmt(tables []types.Table, cTable Table) (string, error) {
-	node := &ast.DeleteStmt{}
-	for _, t := range tables {
-		if t.Name.Eq(cTable.Name) {
-			goto GCTX_DELETE
-		}
-	}
-	tables = append(tables, cTable)
-GCTX_DELETE:
-	gCtx := generator.NewGenCtx(false, true, tables, nil)
-	node.Where = p.WhereClauseAst(gCtx, 1)
-	node.IgnoreErr = true
-	node.IsMultiTable = true
-	node.BeforeFrom = true
-	node.TableRefs = &ast.TableRefsClause{TableRefs: &ast.Join{}}
-	p.GenResultSetNode(node.TableRefs.TableRefs, gCtx)
-	// random some tables in UsedTables to be delete
-	// deletedTables := tables[:RdRange(1, int64(len(tables)))]
-	node.Tables = &ast.DeleteTableList{}
-	node.Tables.Tables = make([]*ast.TableName, 0)
-	node.Tables.Tables = append(node.Tables.Tables, &ast.TableName{Name: cTable.Name.ToModel()})
-	// fmt.Printf("%+v", node.Tables.Tables[0])
-	// for _, t := range deletedTables {
-	// 	node.Tables.Tables = append(node.Tables.Tables, &ast.TableName{Name: t.Name.ToModel()})
-	// }
-	// TODO: add hint
-
-	if sql, err := BufferOut(node); err != nil {
-		return "", errors.Trace(err)
-	} else {
-		return sql, nil
-	}
-}
-
 func (p *Pivot) cleanup(ctx context.Context) {
 	_ = p.Executor.Exec("drop database if exists " + p.Conf.DBName)
 	_ = p.Executor.Exec("create database " + p.Conf.DBName)
@@ -307,12 +216,7 @@ func (p *Pivot) cleanup(ctx context.Context) {
 
 func (p *Pivot) kickup(ctx context.Context) {
 	p.wg.Add(1)
-	p.prepare(ctx)
-	if p.Conf.ExprIndex {
-		p.addExprIndex()
-		// reload indexes created
-		p.LoadSchema(ctx)
-	}
+	p.refreshDatabase(ctx)
 
 	go func() {
 		defer p.wg.Done()
@@ -325,7 +229,7 @@ func (p *Pivot) kickup(ctx context.Context) {
 					p.round++
 					p.progress(ctx)
 					if p.round > 100 {
-						p.changeData(ctx)
+						p.refreshDatabase(ctx)
 						p.round = 0
 						p.batch++
 					}
@@ -343,7 +247,7 @@ func (p *Pivot) progress(ctx context.Context) {
 	}()
 
 	// rand one pivot row for one table
-	pivotRows, usedTables, err := p.ChoosePivotedRow(true)
+	pivotRows, usedTables, err := p.ChoosePivotedRow()
 	if err != nil {
 		panic(err)
 	}
@@ -354,7 +258,7 @@ func (p *Pivot) progress(ctx context.Context) {
 		panic(err)
 	}
 	// execute sql, ensure not null result set
-	if RdBool() {
+	if explicitTxn := RdBool(); explicitTxn {
 		if err = p.Executor.GetConn().Begin(); err != nil {
 			log.L().Error("begin txn failed", zap.Error(err))
 			return
@@ -470,10 +374,7 @@ func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 	return &node
 }
 
-// ChoosePivotedRow choose a row
-// it may move to another struct
-func (p *Pivot) ChoosePivotedRow(skipEmpty bool) (map[string]*connection.QueryItem, []Table, error) {
-	result := make(map[string]*connection.QueryItem)
+func (p *Pivot) randTables() []Table {
 	count := 1
 	if len(p.Tables) > 1 {
 		// avoid too deep joins
@@ -484,11 +385,14 @@ func (p *Pivot) ChoosePivotedRow(skipEmpty bool) (map[string]*connection.QueryIt
 	rand.Shuffle(len(p.Tables), func(i, j int) { p.Tables[i], p.Tables[j] = p.Tables[j], p.Tables[i] })
 	usedTables := make([]Table, count)
 	copy(usedTables, p.Tables[:count])
+	return usedTables
+}
 
-	// for delete or update stmt which doesn't care pivot row
-	if !skipEmpty {
-		return nil, usedTables, nil
-	}
+// ChoosePivotedRow choose a row
+// it may move to another struct
+func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, error) {
+	result := make(map[string]*connection.QueryItem)
+	usedTables := p.randTables()
 	var reallyUsed []Table
 
 	for _, i := range usedTables {
@@ -717,7 +621,7 @@ func compareQueryItem(left *connection.QueryItem, right *connection.QueryItem) b
 	return (left.Null && right.Null) || (left.ValString == right.ValString)
 }
 
-func (p *Pivot) changeData(ctx context.Context) {
+func (p *Pivot) refreshDatabase(ctx context.Context) {
 	p.inWrite.Lock()
 	defer func() {
 		p.inWrite.Unlock()
