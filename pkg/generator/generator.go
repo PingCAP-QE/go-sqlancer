@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
@@ -11,7 +12,8 @@ import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/generator/operator"
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
-
+	"github.com/juju/errors"
+	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/mysql"
@@ -20,6 +22,8 @@ import (
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
+
+	"go.uber.org/zap"
 )
 
 type Generator struct {
@@ -39,7 +43,7 @@ func (g *Generator) SelectStmtAst(genCtx *GenCtx, depth int) (ast.SelectStmt, er
 		},
 	}
 
-	selectStmtNode.Where = g.WhereClauseAst(genCtx, depth, genCtx.UsedTables)
+	selectStmtNode.Where = g.WhereClauseAst(genCtx, depth)
 
 	selectStmtNode.From = &ast.TableRefsClause{
 		TableRefs: &ast.Join{
@@ -51,7 +55,7 @@ func (g *Generator) SelectStmtAst(genCtx *GenCtx, depth int) (ast.SelectStmt, er
 	return selectStmtNode, nil
 }
 
-func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int, usedTables []types.Table) ast.ExprNode {
+func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int) ast.ExprNode {
 	// TODO: support single operation like NOT
 	// TODO: support func
 	// TODO: support subquery
@@ -60,15 +64,15 @@ func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int, usedTables []types.Ta
 	pthese := ast.ParenthesesExpr{}
 	switch Rd(4) {
 	case 0:
-		g.makeUnaryOp(ctx, &pthese, depth, usedTables)
+		g.makeUnaryOp(ctx, &pthese, depth)
 	default:
-		g.makeBinaryOp(ctx, &pthese, depth, usedTables)
+		g.makeBinaryOp(ctx, &pthese, depth)
 	}
 	return &pthese
 }
 
 // change ParenthesesExpr to more extensive
-func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int, usedTables []types.Table) {
+func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int) {
 	node := ast.BinaryOperationExpr{}
 	e.Expr = &node
 	if depth > 0 {
@@ -80,8 +84,8 @@ func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int,
 		case *types.Fn:
 			panic("not implement binary functions")
 		}
-		node.L = g.WhereClauseAst(ctx, depth-1, usedTables)
-		node.R = g.WhereClauseAst(ctx, Rd(depth), usedTables)
+		node.L = g.WhereClauseAst(ctx, depth-1)
+		node.R = g.WhereClauseAst(ctx, Rd(depth))
 	} else {
 		f := operator.BinaryOps.Rand()
 		switch t := f.(type) {
@@ -95,8 +99,12 @@ func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int,
 		if ctx.IsInExprIndex { // avoid string ops in CREATE INDEX stmt
 			acceptType &^= types.DatetimeArg | types.StringArg
 		}
+		var err error
 		if Rd(3) > 0 {
-			node.L = g.columnExpr(usedTables, acceptType)
+			node.L, err = g.columnExpr(ctx.UsedTables, acceptType)
+			if err != nil {
+				panic(errors.Trace(err))
+			}
 			argType = TransMysqlType(node.L.GetType())
 		} else {
 			node.L = g.constValueExpr(acceptType)
@@ -107,21 +115,24 @@ func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int,
 			acceptType &^= types.StringArg // clear string type from accept types
 		}
 		if Rd(3) > 0 {
-			node.R = g.columnExpr(usedTables, acceptType)
+			node.R, err = g.columnExpr(ctx.UsedTables, acceptType)
+			if err != nil {
+				panic(errors.Trace(err))
+			}
 		} else {
 			node.R = g.constValueExpr(acceptType)
 		}
 	}
 }
 
-func (g *Generator) makeUnaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int, usedTables []types.Table) {
+func (g *Generator) makeUnaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int) {
 	node := ast.UnaryOperationExpr{}
 	e.Expr = &node
 	if depth > 0 {
 		switch Rd(1) {
 		default:
 			node.Op = opcode.Not
-			node.V = g.WhereClauseAst(ctx, depth-1, usedTables)
+			node.V = g.WhereClauseAst(ctx, depth-1)
 		}
 	} else {
 		switch Rd(1) {
@@ -133,7 +144,11 @@ func (g *Generator) makeUnaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int, 
 			}
 			// no need to check params number
 			if Rd(3) > 0 {
-				node.V = g.columnExpr(usedTables, arg)
+				var err error
+				node.V, err = g.columnExpr(ctx.UsedTables, arg)
+				if err != nil {
+					panic(errors.Trace(err))
+				}
 			} else {
 				node.V = g.constValueExpr(arg)
 			}
@@ -210,7 +225,7 @@ func (g *Generator) constValueExpr(arg int) ast.ValueExpr {
 	}
 }
 
-func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNameExpr {
+func (g *Generator) columnExpr(usedTables []types.Table, arg int) (*ast.ColumnNameExpr, error) {
 	randTable := usedTables[Rd(len(usedTables))]
 	tempCols := make([]types.Column, 0)
 	for i := range randTable.Columns {
@@ -219,7 +234,7 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 		}
 	}
 	if len(tempCols) == 0 {
-		panic(fmt.Sprintf("no valid column as arg %d table %s", arg, randTable.Name))
+		return nil, errors.New(fmt.Sprintf("no valid column as arg %d table %s", arg, randTable.Name))
 	}
 	randColumn := tempCols[Rd(len(tempCols))]
 	colName, typeStr := randColumn.Name, randColumn.Type
@@ -230,12 +245,12 @@ func (g *Generator) columnExpr(usedTables []types.Table, arg int) *ast.ColumnNam
 	}
 	col.Type = parser_types.FieldType{}
 	col.SetType(tidb_types.NewFieldType(TransToMysqlType(TransStringType(typeStr))))
-	return col
+	return col, nil
 }
 
 // walk on select stmt
 func (g *Generator) SelectStmt(node *ast.SelectStmt, genCtx *GenCtx) (string, []types.Column, map[string]*connection.QueryItem, error) {
-	g.genResultSetNode(node.From.TableRefs, genCtx)
+	g.GenResultSetNode(node.From.TableRefs, genCtx)
 	g.genJoin(node.From.TableRefs, genCtx)
 	// if node.From.TableRefs.Right == nil && node.From.TableRefs.Left != nil {
 	// 	table = s.walkResultSetNode(node.From.TableRefs.Left)
@@ -408,9 +423,17 @@ func (g *Generator) genJoin(node *ast.Join, genCtx *GenCtx) {
 			panic("unreachable")
 		}
 		allTables := append(leftTables, rightTable)
+		usedTables := genCtx.UsedTables
 		genCtx.ResultTables = allTables
+		genCtx.UsedTables = allTables
+		defer func() {
+			genCtx.UsedTables = usedTables
+		}()
 		node.On = &ast.OnCondition{}
-		node.On.Expr = g.WhereClauseAst(genCtx, 0, allTables)
+		// for _, table := range genCtx.ResultTables {
+		// 	fmt.Println(table.Name, table.AliasName)
+		// }
+		node.On.Expr = g.WhereClauseAst(genCtx, 0)
 		return
 	}
 
@@ -494,7 +517,7 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx) ([]ty
 	return columns, rows
 }
 
-func (g *Generator) genResultSetNode(node *ast.Join, genCtx *GenCtx) {
+func (g *Generator) GenResultSetNode(node *ast.Join, genCtx *GenCtx) {
 	usedTables := genCtx.UsedTables
 	l := len(usedTables)
 	var left *ast.Join = node
@@ -509,13 +532,17 @@ func (g *Generator) genResultSetNode(node *ast.Join, genCtx *GenCtx) {
 	}
 	for i := l - 1; i >= 1; i-- {
 		var tp ast.JoinType
-		switch Rd(3) {
-		case 0:
-			tp = ast.RightJoin
-		case 1:
-			tp = ast.LeftJoin
-		default:
+		if !genCtx.EnableLeftRightJoin {
 			tp = ast.CrossJoin
+		} else {
+			switch Rd(3) {
+			case 0:
+				tp = ast.RightJoin
+			case 1:
+				tp = ast.LeftJoin
+			default:
+				tp = ast.CrossJoin
+			}
 		}
 
 		ts := ast.TableSource{}
@@ -604,4 +631,94 @@ func (v *columnNameVisitor) Enter(in ast.Node) (out ast.Node, skipChildren bool)
 
 func (v *columnNameVisitor) Leave(in ast.Node) (out ast.Node, ok bool) {
 	return in, true
+}
+
+// NOTICE: not support multi-table update
+func (g *Generator) GenerateUpdateDMLStmt(tables []types.Table, currTable types.Table) (string, error) {
+	for _, t := range tables {
+		if t.Name.Eq(currTable.Name) {
+			goto GCTX_UPDATE
+		}
+	}
+	tables = append(tables, currTable)
+GCTX_UPDATE:
+	gCtx := NewGenCtx(false, true, tables, nil)
+	node := &ast.UpdateStmt{
+		Where:     g.WhereClauseAst(gCtx, 1),
+		IgnoreErr: true,
+		TableRefs: &ast.TableRefsClause{TableRefs: &ast.Join{}},
+		List:      make([]*ast.Assignment, 0),
+	}
+	g.GenResultSetNode(node.TableRefs.TableRefs, gCtx)
+
+	// remove id col
+	tempColumns := make(types.Columns, 0)
+	for _, c := range currTable.Columns {
+		if !strings.HasPrefix(c.Name.String(), "id") {
+			tempColumns = append(tempColumns, c)
+		}
+	}
+
+	// number of SET assignments
+	for i := Rd(3) + 1; i > 0; i-- {
+		asn := ast.Assignment{}
+		col := tempColumns.RandColumn()
+
+		asn.Column = col.ToModel().Name
+		argTp := TransStringType(col.Type)
+		if RdBool() {
+			asn.Expr = g.constValueExpr(argTp)
+		} else {
+			var err error
+			asn.Expr, err = g.columnExpr(tables, argTp)
+			if err != nil {
+				log.L().Warn("columnExpr returns error", zap.Error(err))
+				asn.Expr = g.constValueExpr(argTp)
+			}
+		}
+		node.List = append(node.List, &asn)
+	}
+	// TODO: add hints
+
+	if sql, err := BufferOut(node); err != nil {
+		return "", errors.Trace(err)
+	} else {
+		return sql, nil
+	}
+}
+
+// NOTICE: not support multi-table delete
+func (g *Generator) GenerateDeleteDMLStmt(tables []types.Table, currTable types.Table) (string, error) {
+	for _, t := range tables {
+		if t.Name.Eq(currTable.Name) {
+			goto GCTX_DELETE
+		}
+	}
+	tables = append(tables, currTable)
+GCTX_DELETE:
+	gCtx := NewGenCtx(false, true, tables, nil)
+	node := &ast.DeleteStmt{
+		Where:        g.WhereClauseAst(gCtx, 1),
+		IgnoreErr:    true,
+		IsMultiTable: true,
+		BeforeFrom:   true,
+		TableRefs:    &ast.TableRefsClause{TableRefs: &ast.Join{}},
+		Tables: &ast.DeleteTableList{
+			Tables: []*ast.TableName{{Name: currTable.Name.ToModel()}},
+		},
+	}
+	g.GenResultSetNode(node.TableRefs.TableRefs, gCtx)
+	// random some tables in UsedTables to be delete
+	// deletedTables := tables[:RdRange(1, int64(len(tables)))]
+	// fmt.Printf("%+v", node.Tables.Tables[0])
+	// for _, t := range deletedTables {
+	// 	node.Tables.Tables = append(node.Tables.Tables, &ast.TableName{Name: t.Name.ToModel()})
+	// }
+	// TODO: add hint
+
+	if sql, err := BufferOut(node); err != nil {
+		return "", errors.Trace(err)
+	} else {
+		return sql, nil
+	}
 }

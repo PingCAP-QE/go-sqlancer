@@ -1,14 +1,10 @@
 package types
 
-import (
-	"math/rand"
-)
-
 // Table defines database table
 type Table struct {
 	Name      CIStr
 	AliasName CIStr
-	Columns   []Column
+	Columns   Columns
 	Indexes   []CIStr
 	Type      string
 }
@@ -26,14 +22,6 @@ func (t Table) Clone() Table {
 		newTable.Columns[i] = column.Clone()
 	}
 	return newTable
-}
-
-// RandColumn rand column from table
-func (t *Table) RandColumn() Column {
-	if len(t.Columns) == 0 {
-		panic("no columns in table")
-	}
-	return t.Columns[rand.Intn(len(t.Columns))]
 }
 
 // GetColumns get ordered columns

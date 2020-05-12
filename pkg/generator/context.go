@@ -8,24 +8,27 @@ import (
 )
 
 type GenCtx struct {
-	IsInExprIndex bool
 	tmpTableIndex int
 	tmpColIndex   int
 	UsedTables    []types.Table
 	ResultTables  []types.Table
 	TableAlias    map[string]string
 	PivotRows     map[string]*connection.QueryItem
+
+	IsInExprIndex       bool
+	EnableLeftRightJoin bool
 }
 
-func NewGenCtx(isInExprIndex bool, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) *GenCtx {
+func NewGenCtx(enableLeftRightJoin bool, isInExprIndex bool, usedTables []types.Table, pivotRows map[string]*connection.QueryItem) *GenCtx {
 	return &GenCtx{
-		IsInExprIndex: isInExprIndex,
-		tmpTableIndex: 0,
-		tmpColIndex:   0,
-		UsedTables:    usedTables,
-		ResultTables:  make([]types.Table, 0),
-		TableAlias:    make(map[string]string),
-		PivotRows:     pivotRows,
+		tmpTableIndex:       0,
+		tmpColIndex:         0,
+		UsedTables:          usedTables,
+		ResultTables:        make([]types.Table, 0),
+		TableAlias:          make(map[string]string),
+		PivotRows:           pivotRows,
+		IsInExprIndex:       isInExprIndex,
+		EnableLeftRightJoin: enableLeftRightJoin,
 	}
 }
 

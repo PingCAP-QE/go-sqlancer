@@ -48,6 +48,7 @@ func (e *Executor) reloadSchema() error {
 
 func (e *Executor) loadSchema(records [][6]string, indexes map[string][]types.CIStr) {
 	// init databases
+	e.tables = make(map[string]*types.Table)
 LOOP:
 	for _, record := range records {
 		dbname := record[0]

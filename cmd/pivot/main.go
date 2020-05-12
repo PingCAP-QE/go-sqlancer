@@ -29,7 +29,7 @@ var (
 	depth     = flag.Int(sqlDepth, 1, "sql depth")
 	silent    = flag.Bool(silentMode, false, "silent when verify failed")
 	debug     = flag.Bool(nmDebug, false, "enable debug output")
-	hint      = flag.Bool(nmHint, true, "enable sql hint for TiDB")
+	hint      = flag.Bool(nmHint, false, "enable sql hint for TiDB")
 	exprIdx   = flag.Bool(nmExprIdx, false, "enable create expression index")
 )
 
@@ -81,6 +81,6 @@ func loadConfig() {
 		conf.Hint = *hint
 	}
 	if actualFlags[nmExprIdx] {
-		conf.ExprIndex = *hint
+		conf.ExprIndex = *exprIdx
 	}
 }

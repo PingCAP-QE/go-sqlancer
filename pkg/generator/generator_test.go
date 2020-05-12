@@ -29,7 +29,7 @@ func isTrueValue(expr parserdriver.ValueExpr) bool {
 }
 
 func GenCtxWithTables(tables []Table) *GenCtx {
-	genCtx := NewGenCtx(false, tables, nil)
+	genCtx := NewGenCtx(true, false, tables, nil)
 	genCtx.ResultTables = tables
 	return genCtx
 }
