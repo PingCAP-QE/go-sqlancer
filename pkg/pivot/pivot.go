@@ -23,6 +23,7 @@ import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
 	"github.com/chaos-mesh/go-sqlancer/pkg/executor"
 	"github.com/chaos-mesh/go-sqlancer/pkg/generator"
+	"github.com/chaos-mesh/go-sqlancer/pkg/knownbugs"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
@@ -253,10 +254,11 @@ func (p *Pivot) progress(ctx context.Context) {
 	}
 	// generate sql ast tree and
 	// generate sql where clause
-	_, selectSQL, columns, updatedPivotRows, tableMap, err := p.GenSelectStmt(pivotRows, usedTables)
+	selectAst, selectSQL, columns, updatedPivotRows, tableMap, err := p.GenSelectStmt(pivotRows, usedTables)
 	if err != nil {
 		panic(err)
 	}
+	dust := knownbugs.NewDustbin([]ast.Node{selectAst}, pivotRows)
 	// execute sql, ensure not null result set
 	if explicitTxn := RdBool(); explicitTxn {
 		if err = p.Executor.GetConn().Begin(); err != nil {
@@ -295,6 +297,9 @@ func (p *Pivot) progress(ctx context.Context) {
 		// 		fmt.Printf("sub query:\n%s\n", subSQL)
 		// 	}
 		// }
+		if dust.IsKnownBug() {
+			return
+		}
 		fmt.Printf("row:\n")
 		p.printPivotRows(pivotRows)
 		if p.Conf.Silent && p.round >= p.Conf.ViewCount {
