@@ -43,7 +43,7 @@ func (g *Generator) SelectStmtAst(genCtx *GenCtx, depth int) (ast.SelectStmt, er
 		},
 	}
 
-	selectStmtNode.Where = g.WhereClauseAst(genCtx, depth)
+	selectStmtNode.Where = g.GenExpr(genCtx, depth)
 
 	selectStmtNode.From = &ast.TableRefsClause{
 		TableRefs: &ast.Join{
@@ -55,7 +55,7 @@ func (g *Generator) SelectStmtAst(genCtx *GenCtx, depth int) (ast.SelectStmt, er
 	return selectStmtNode, nil
 }
 
-func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int) ast.ExprNode {
+func (g *Generator) GenExpr(ctx *GenCtx, depth int) ast.ExprNode {
 	// TODO: support single operation like NOT
 	// TODO: support func
 	// TODO: support subquery
@@ -76,16 +76,15 @@ func (g *Generator) makeBinaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int)
 	node := ast.BinaryOperationExpr{}
 	e.Expr = &node
 	if depth > 0 {
-		// f := operator.LogicOps[Rd(len(operator.LogicOps))]
-		f := operator.LogicOps.Rand()
+		f := operator.BinaryOps.Rand()
 		switch t := f.(type) {
 		case *types.Op:
 			node.Op = t.GetOpcode()
 		case *types.Fn:
 			panic("not implement binary functions")
 		}
-		node.L = g.WhereClauseAst(ctx, depth-1)
-		node.R = g.WhereClauseAst(ctx, Rd(depth))
+		node.L = g.GenExpr(ctx, depth-1)
+		node.R = g.GenExpr(ctx, Rd(depth))
 	} else {
 		f := operator.BinaryOps.Rand()
 		switch t := f.(type) {
@@ -132,26 +131,32 @@ func (g *Generator) makeUnaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int) 
 		switch Rd(1) {
 		default:
 			node.Op = opcode.Not
-			node.V = g.WhereClauseAst(ctx, depth-1)
+			node.V = g.GenExpr(ctx, depth-1)
 		}
-	} else {
-		switch Rd(1) {
-		default:
-			node.Op = opcode.Not
-			arg := types.AnyArg
-			if ctx.IsInExprIndex {
-				arg &^= types.StringArg | types.DatetimeArg
-			}
-			// no need to check params number
-			if Rd(3) > 0 {
-				var err error
-				node.V, err = g.columnExpr(ctx.UsedTables, arg)
-				if err != nil {
-					panic(errors.Trace(err))
-				}
-			} else {
-				node.V = g.constValueExpr(arg)
-			}
+		return
+	}
+	var arg = types.AnyArg
+	switch Rd(2) {
+	case 0:
+		// IS NULL: https://dev.mysql.com/doc/refman/8.0/en/comparison-operators.html#function_isnull
+		node.Op = opcode.IsNull
+	default:
+		node.Op = opcode.Not
+		arg := types.AnyArg
+		if ctx.IsInExprIndex {
+			arg &^= types.StringArg | types.DatetimeArg
+		}
+	}
+	switch kase := Rd(3); kase {
+	case 0:
+		// constValueExpr
+		node.V = g.constValueExpr(arg)
+	default:
+		// columnExpr
+		var err error
+		node.V, err = g.columnExpr(ctx.UsedTables, arg)
+		if err != nil {
+			panic(errors.Trace(err))
 		}
 	}
 }
@@ -433,7 +438,7 @@ func (g *Generator) genJoin(node *ast.Join, genCtx *GenCtx) {
 		// for _, table := range genCtx.ResultTables {
 		// 	fmt.Println(table.Name, table.AliasName)
 		// }
-		node.On.Expr = g.WhereClauseAst(genCtx, 0)
+		node.On.Expr = g.GenExpr(genCtx, 0)
 		return
 	}
 
@@ -644,7 +649,7 @@ func (g *Generator) GenerateUpdateDMLStmt(tables []types.Table, currTable types.
 GCTX_UPDATE:
 	gCtx := NewGenCtx(false, true, tables, nil)
 	node := &ast.UpdateStmt{
-		Where:     g.WhereClauseAst(gCtx, 1),
+		Where:     g.GenExpr(gCtx, 1),
 		IgnoreErr: true,
 		TableRefs: &ast.TableRefsClause{TableRefs: &ast.Join{}},
 		List:      make([]*ast.Assignment, 0),
@@ -698,7 +703,7 @@ func (g *Generator) GenerateDeleteDMLStmt(tables []types.Table, currTable types.
 GCTX_DELETE:
 	gCtx := NewGenCtx(false, true, tables, nil)
 	node := &ast.DeleteStmt{
-		Where:        g.WhereClauseAst(gCtx, 1),
+		Where:        g.GenExpr(gCtx, 1),
 		IgnoreErr:    true,
 		IsMultiTable: true,
 		BeforeFrom:   true,

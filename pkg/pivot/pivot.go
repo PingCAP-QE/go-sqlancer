@@ -362,7 +362,7 @@ func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 
 	exprs := make([]ast.ExprNode, 0)
 	for x := 0; x < Rd(3)+1; x++ {
-		exprs = append(exprs, p.WhereClauseAst(generator.NewGenCtx(false, true, []Table{table}, nil), 1))
+		exprs = append(exprs, p.GenExpr(generator.NewGenCtx(false, true, []Table{table}, nil), 1))
 	}
 	node := ast.CreateIndexStmt{}
 	node.IndexName = "idx_" + RdStringChar(5)

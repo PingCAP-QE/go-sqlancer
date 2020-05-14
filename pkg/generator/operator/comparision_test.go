@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBinaryCaseNull_1(t *testing.T) {
+func TestComparisionNull_1(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(nil)
 	b := parser_driver.ValueExpr{}
@@ -36,7 +36,7 @@ func TestBinaryCaseNull_1(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseNull_2(t *testing.T) {
+func TestComparisionNull_2(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(-0.00)
 	b := parser_driver.ValueExpr{}
@@ -63,7 +63,7 @@ func TestBinaryCaseNull_2(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseInt_1(t *testing.T) {
+func TestComparisionInt_1(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(-0.00)
 	b := parser_driver.ValueExpr{}
@@ -100,7 +100,7 @@ func TestBinaryCaseInt_1(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseInt_2(t *testing.T) {
+func TestComparisionInt_2(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(false)
 	b := parser_driver.ValueExpr{}
@@ -137,7 +137,7 @@ func TestBinaryCaseInt_2(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseInt_3(t *testing.T) {
+func TestComparisionInt_3(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(-1)
 	b := parser_driver.ValueExpr{}
@@ -174,7 +174,7 @@ func TestBinaryCaseInt_3(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseFloat_1(t *testing.T) {
+func TestComparisionFloat_1(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(-1.000000)
 	b := parser_driver.ValueExpr{}
@@ -211,7 +211,7 @@ func TestBinaryCaseFloat_1(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseFloat_2(t *testing.T) {
+func TestComparisionFloat_2(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(1.000000)
 	b := parser_driver.ValueExpr{}
@@ -248,7 +248,7 @@ func TestBinaryCaseFloat_2(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseFloat_3(t *testing.T) {
+func TestComparisionFloat_3(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(math.SmallestNonzeroFloat64)
 	b := parser_driver.ValueExpr{}
@@ -285,7 +285,7 @@ func TestBinaryCaseFloat_3(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseFloat_4(t *testing.T) {
+func TestComparisionFloat_4(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(math.MaxFloat64)
 	b := parser_driver.ValueExpr{}
@@ -322,7 +322,7 @@ func TestBinaryCaseFloat_4(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseString_1(t *testing.T) {
+func TestComparisionString_1(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue("")
 	b := parser_driver.ValueExpr{}
@@ -359,7 +359,7 @@ func TestBinaryCaseString_1(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseString_2(t *testing.T) {
+func TestComparisionString_2(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(1.23456)
 	b := parser_driver.ValueExpr{}
@@ -396,7 +396,7 @@ func TestBinaryCaseString_2(t *testing.T) {
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
-func TestBinaryCaseString_3(t *testing.T) {
+func TestComparisionString_3(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue("Sss")
 	b := parser_driver.ValueExpr{}
@@ -471,4 +471,26 @@ func TestNotString_1(t *testing.T) {
 	actual, err = Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
+}
+
+func TestISNull_1(t *testing.T) {
+	a := parser_driver.ValueExpr{}
+	a.SetValue(nil)
+	actual, err := ISNULL.Eval(a)
+	assert.NoError(t, err, "should not return error")
+	expected := parser_driver.ValueExpr{}
+	expected.SetValue(1)
+	assert.Equal(t, expected, actual)
+
+	a.SetValue(1)
+	expected.SetValue(0)
+	actual, err = ISNULL.Eval(a)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, expected, actual)
+
+	a.SetValue(false)
+	expected.SetValue(0)
+	actual, err = ISNULL.Eval(a)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, expected, actual)
 }

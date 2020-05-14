@@ -9,8 +9,6 @@ import (
 )
 
 var (
-	LogicOps = make(types.OpFuncIndex)
-
 	LogicXor = types.NewOp(opcode.LogicXor, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
 			panic("error param numbers")
@@ -95,9 +93,6 @@ func init() {
 		LogicOr,
 	} {
 		BinaryOps.Add(f)
-		LogicOps.Add(f)
 	}
-
 	UnaryOps.Add(Not)
-	// LogicOps.Add(Not)
 }
