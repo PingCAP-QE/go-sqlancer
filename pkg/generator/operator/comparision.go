@@ -113,11 +113,30 @@ var (
 		e.SetValue(0)
 		return e, nil
 	})
+
+	NULLEq = types.NewOp(opcode.NullEQ, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		b := v[1]
+		e := parser_driver.ValueExpr{}
+		if a.Kind() == tidb_types.KindNull && b.Kind() == tidb_types.KindNull {
+			e.SetValue(1)
+			return e, nil
+		}
+		if a.Kind() == tidb_types.KindNull || b.Kind() == tidb_types.KindNull {
+			e.SetNull()
+			return e, nil
+		}
+		e.SetValue(Compare(a, b) == 0)
+		return e, nil
+	})
 )
 
 func init() {
 	// DONOT op on non-date format types
-	for _, f := range []*types.Op{Lt, Gt, Le, Ge, Ne, Eq} {
+	for _, f := range []*types.Op{Lt, Gt, Le, Ge, Ne, Eq, NULLEq} {
 		f.SetAcceptType(0, types.DatetimeArg, types.AnyArg^types.StringArg^types.IntArg^types.FloatArg)
 		f.SetAcceptType(1, types.DatetimeArg, types.AnyArg^types.StringArg^types.IntArg^types.FloatArg)
 		f.SetAcceptType(0, types.StringArg, types.AnyArg^types.DatetimeArg)

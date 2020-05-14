@@ -34,6 +34,11 @@ func TestComparisionNull_1(t *testing.T) {
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	expected.SetNull()
+	actual, err = NULLEq.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
 func TestComparisionNull_2(t *testing.T) {
@@ -59,6 +64,11 @@ func TestComparisionNull_2(t *testing.T) {
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 	actual, err = Gt.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	expected.SetNull()
+	actual, err = NULLEq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
@@ -98,6 +108,11 @@ func TestComparisionInt_1(t *testing.T) {
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	expected.SetValue(true)
+	actual, err = NULLEq.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
 func TestComparisionInt_2(t *testing.T) {
@@ -133,6 +148,11 @@ func TestComparisionInt_2(t *testing.T) {
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	expected.SetValue(true)
+	actual, err = NULLEq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
@@ -172,6 +192,10 @@ func TestComparisionInt_3(t *testing.T) {
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	actual, err = NULLEq.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
 func TestComparisionFloat_1(t *testing.T) {
@@ -207,6 +231,11 @@ func TestComparisionFloat_1(t *testing.T) {
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	expected.SetValue(true)
+	actual, err = NULLEq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
@@ -246,6 +275,10 @@ func TestComparisionFloat_2(t *testing.T) {
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	actual, err = NULLEq.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
 func TestComparisionFloat_3(t *testing.T) {
@@ -281,6 +314,11 @@ func TestComparisionFloat_3(t *testing.T) {
 
 	expected.SetValue(true)
 	actual, err = Gt.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	expected.SetValue(false)
+	actual, err = NULLEq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
@@ -320,6 +358,11 @@ func TestComparisionFloat_4(t *testing.T) {
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	expected.SetValue(false)
+	actual, err = NULLEq.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
 func TestComparisionString_1(t *testing.T) {
@@ -355,6 +398,10 @@ func TestComparisionString_1(t *testing.T) {
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	actual, err = NULLEq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
@@ -394,6 +441,11 @@ func TestComparisionString_2(t *testing.T) {
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	expected.SetValue(false)
+	actual, err = NULLEq.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
 
 func TestComparisionString_3(t *testing.T) {
@@ -429,6 +481,10 @@ func TestComparisionString_3(t *testing.T) {
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	actual, err = NULLEq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
