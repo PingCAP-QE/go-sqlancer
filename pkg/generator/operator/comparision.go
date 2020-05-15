@@ -126,10 +126,39 @@ var (
 			return e, nil
 		}
 		if a.Kind() == tidb_types.KindNull || b.Kind() == tidb_types.KindNull {
-			e.SetNull()
+			e.SetValue(0)
 			return e, nil
 		}
 		e.SetValue(Compare(a, b) == 0)
+		return e, nil
+	})
+
+	IN = types.NewOp(opcode.In, 1, -1, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) < 2 {
+			panic("error param numbers")
+		}
+		a := v[0]
+		e := parser_driver.ValueExpr{}
+		if a.Kind() == tidb_types.KindNull {
+			e.SetNull()
+			return e, nil
+		}
+		hasNull := false
+		for _, b := range v[1:] {
+			if b.Kind() == tidb_types.KindNull {
+				hasNull = true
+				continue
+			}
+			if Compare(a, b) == 0 {
+				e.SetValue(1)
+				return e, nil
+			}
+		}
+		if hasNull {
+			e.SetNull()
+			return e, nil
+		}
+		e.SetValue(0)
 		return e, nil
 	})
 )
@@ -149,4 +178,5 @@ func init() {
 		BinaryOps.Add(f)
 	}
 	UnaryOps.Add(ISNULL)
+	MultiaryOps.Add(IN)
 }

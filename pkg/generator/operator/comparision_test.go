@@ -35,7 +35,7 @@ func TestComparisionNull_1(t *testing.T) {
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 
-	expected.SetNull()
+	expected.SetValue(0)
 	actual, err = NULLEq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
@@ -67,11 +67,45 @@ func TestComparisionNull_2(t *testing.T) {
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 
-	expected.SetNull()
+	expected.SetValue(0)
 	actual, err = NULLEq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
 	assert.Equal(t, util.CompareValue(actual, expected), true)
 }
+
+func TestComparisionBothNull_1(t *testing.T) {
+	a := parser_driver.ValueExpr{}
+	a.SetValue(nil)
+	b := parser_driver.ValueExpr{}
+	b.SetValue(nil)
+
+	expected := parser_driver.ValueExpr{}
+	expected.SetValue(nil)
+	actual, err := Ne.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+	actual, err = Eq.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+	actual, err = Le.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+	actual, err = Ge.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+	actual, err = Lt.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+	actual, err = Gt.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+
+	expected.SetValue(1)
+	actual, err = NULLEq.Eval(a, b)
+	assert.NoError(t, err, "should not return error")
+	assert.Equal(t, util.CompareValue(actual, expected), true)
+}
+
 
 func TestComparisionInt_1(t *testing.T) {
 	a := parser_driver.ValueExpr{}

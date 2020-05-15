@@ -65,6 +65,10 @@ func (g *Generator) GenExpr(ctx *GenCtx, depth int) ast.ExprNode {
 	switch Rd(4) {
 	case 0:
 		g.makeUnaryOp(ctx, &pthese, depth)
+	case 1:
+		g.makeBinaryOp(ctx, &pthese, depth)
+	case 2:
+		g.makeMultiaryOp(ctx, &pthese, depth)
 	default:
 		g.makeBinaryOp(ctx, &pthese, depth)
 	}
@@ -139,25 +143,86 @@ func (g *Generator) makeUnaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int) 
 	switch Rd(2) {
 	case 0:
 		// IS NULL: https://dev.mysql.com/doc/refman/8.0/en/comparison-operators.html#function_isnull
-		node.Op = opcode.IsNull
+		isNullExpr := &ast.IsNullExpr{
+			Expr: nil,
+			Not:  false,
+		}
+		e.Expr = isNullExpr
+		switch kase := Rd(3); kase {
+		case 0:
+			// constValueExpr
+			isNullExpr.Expr = g.constValueExpr(arg)
+		default:
+			// columnExpr
+			var err error
+			isNullExpr.Expr, err = g.columnExpr(ctx.UsedTables, arg)
+			if err != nil {
+				panic(errors.Trace(err))
+			}
+		}
 	default:
 		node.Op = opcode.Not
 		arg := types.AnyArg
 		if ctx.IsInExprIndex {
 			arg &^= types.StringArg | types.DatetimeArg
 		}
-	}
-	switch kase := Rd(3); kase {
-	case 0:
-		// constValueExpr
-		node.V = g.constValueExpr(arg)
-	default:
-		// columnExpr
-		var err error
-		node.V, err = g.columnExpr(ctx.UsedTables, arg)
-		if err != nil {
-			panic(errors.Trace(err))
+		switch kase := Rd(3); kase {
+		case 0:
+			// constValueExpr
+			node.V = g.constValueExpr(arg)
+		default:
+			// columnExpr
+			var err error
+			node.V, err = g.columnExpr(ctx.UsedTables, arg)
+			if err != nil {
+				panic(errors.Trace(err))
+			}
 		}
+	}
+}
+
+func (g *Generator) makeMultiaryOp(ctx *GenCtx, e *ast.ParenthesesExpr, depth int) {
+	f := operator.MultiaryOps.Rand()
+	switch t := f.(type) {
+	case *types.Op:
+		switch t.GetOpcode() {
+		case opcode.In:
+			var expr ast.ExprNode
+			var exprList []ast.ExprNode
+			if depth > 0 {
+				expr = g.GenExpr(ctx, depth-1)
+				for i := 0; i < Rd(3)+1; i++ {
+					exprList = append(exprList, g.GenExpr(ctx, depth-1))
+				}
+			} else {
+				// TODO(mahjonp): we need ensure expr and subExpr are comparable after we refactor generator
+				// to support typed AST
+				expr, _ = g.columnExpr(ctx.UsedTables, types.AnyArg)
+				for i := 0; i < Rd(3)+1; i++ {
+					var subExpr ast.ExprNode
+					var err error
+					if Rd(3) > 0 {
+						subExpr, err = g.columnExpr(ctx.UsedTables, types.AnyArg)
+						if err != nil {
+							panic(errors.Trace(err))
+						}
+					} else {
+						subExpr = g.constValueExpr(types.AnyArg)
+					}
+					exprList = append(exprList, subExpr)
+				}
+			}
+			e.Expr = &ast.PatternInExpr{
+				Expr: expr,
+				List: exprList,
+				Not:  false,
+			}
+		default:
+			panic("not yet implemented")
+		}
+		return
+	case *types.Fn:
+		panic("not implement binary functions")
 	}
 }
 
@@ -307,6 +372,17 @@ func evaluateRow(e ast.Node, genCtx *GenCtx, pivotRows map[string]interface{}) p
 			r.SetInt64(1)
 		}
 		return r
+	case *ast.PatternInExpr:
+		exprValue := evaluateRow(t.Expr, genCtx, pivotRows)
+		var inExprValues = []parser_driver.ValueExpr{exprValue}
+		for _, inExpr := range t.List {
+			inExprValues = append(inExprValues, evaluateRow(inExpr, genCtx, pivotRows))
+		}
+		res, err := operator.MultiaryOps.Eval(opcode.Ops[opcode.In], inExprValues...)
+		if err != nil {
+			panic(fmt.Sprintf("error occurred on eval: %+v", err))
+		}
+		return res
 	case *ast.ColumnNameExpr:
 		for key, value := range pivotRows {
 			originTableName := t.Name.Table.L
