@@ -30,12 +30,12 @@ type QueryItem struct {
 
 func (q *QueryItem) String() string {
 	var strValue = q.ValString
-	if q.Null {
-		strValue = "NULL"
-	}
 	switch strings.ToUpper(q.ValType.DatabaseTypeName()) {
 	case "VARCHAR", "CHAR", "TEXT":
 		strValue = fmt.Sprintf("'%s'", q.ValString)
+	}
+	if q.Null {
+		strValue = "NULL"
 	}
 	return fmt.Sprintf("%s is %s type", strValue, q.ValType.DatabaseTypeName())
 }
