@@ -3,9 +3,11 @@ package util
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"regexp"
 	"strings"
 
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/format"
@@ -15,6 +17,25 @@ import (
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 )
+
+var OpFuncGroupByRet types.OpFuncIndex = make(types.OpFuncIndex)
+
+func RegisterToOpFnIndex(o types.OpFuncEval) {
+	returnType := o.GetPossibleReturnType()
+
+	for returnType != 0 {
+		// i must be n-th power of 2: 1001100 => i(0000100)
+		i := returnType &^ (returnType - 1)
+		if _, ok := OpFuncGroupByRet[i]; !ok {
+			OpFuncGroupByRet[i] = make(map[string]types.OpFuncEval)
+		}
+		if _, ok := OpFuncGroupByRet[i][o.GetName()]; !ok {
+			OpFuncGroupByRet[i][o.GetName()] = o
+		}
+		// make the last non-zero bit to be zero: 1001100 => 1001000
+		returnType &= (returnType - 1)
+	}
+}
 
 // -1 NULL; 0 false; 1 true
 func ConvertToBoolOrNull(a parser_driver.ValueExpr) int8 {
@@ -88,49 +109,51 @@ func BufferOut(node ast.Node) (string, error) {
 }
 
 // TODO: decimal NOT Equals to float
-func TransMysqlType(t *parser_types.FieldType) int {
+func TransMysqlType(t *parser_types.FieldType) uint64 {
 	switch t.Tp {
 	case mysql.TypeTiny, mysql.TypeShort, mysql.TypeLong, mysql.TypeLonglong, mysql.TypeInt24:
-		return IntArg
+		return TypeIntArg
 	case mysql.TypeDecimal, mysql.TypeFloat, mysql.TypeDouble:
-		return FloatArg
+		return TypeFloatArg
 	case mysql.TypeTimestamp, mysql.TypeDate, mysql.TypeDatetime:
-		return DatetimeArg
+		return TypeDatetimeArg
 	case mysql.TypeVarchar, mysql.TypeJSON, mysql.TypeVarString, mysql.TypeString:
-		return StringArg
+		return TypeStringArg
+		// Note: Null is base of all types
 	case mysql.TypeNull:
-		return NullArg
+		arr := []uint64{TypeIntArg, TypeFloatArg, TypeDatetimeArg, TypeStringArg}
+		return arr[rand.Intn(len(arr))]
 	default:
 		panic(fmt.Sprintf("no implement for type: %s", t.String()))
 	}
 }
 
 // TODO: decimal NOT Equals to float
-func TransStringType(s string) int {
+func TransStringType(s string) uint64 {
 	s = strings.ToLower(s)
 	switch {
 	case strings.Contains(s, "string"), strings.Contains(s, "char"), strings.Contains(s, "text"), strings.Contains(s, "json"):
-		return StringArg
+		return TypeStringArg
 	case strings.Contains(s, "int"), strings.Contains(s, "long"), strings.Contains(s, "short"), strings.Contains(s, "tiny"):
-		return IntArg
+		return TypeIntArg
 	case strings.Contains(s, "float"), strings.Contains(s, "decimal"), strings.Contains(s, "double"):
-		return FloatArg
+		return TypeFloatArg
 	case strings.Contains(s, "time"), strings.Contains(s, "date"):
-		return DatetimeArg
+		return TypeDatetimeArg
 	default:
 		panic(fmt.Sprintf("no implement for type: %s", s))
 	}
 }
 
-func TransToMysqlType(i int) byte {
+func TransToMysqlType(i uint64) byte {
 	switch i {
-	case IntArg:
+	case TypeIntArg:
 		return mysql.TypeLong
-	case FloatArg:
+	case TypeFloatArg:
 		return mysql.TypeDouble
-	case DatetimeArg:
+	case TypeDatetimeArg:
 		return mysql.TypeDatetime
-	case StringArg:
+	case TypeStringArg:
 		return mysql.TypeVarchar
 	default:
 		panic(fmt.Sprintf("no implement this type: %d", i))
