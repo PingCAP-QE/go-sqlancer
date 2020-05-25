@@ -18,7 +18,7 @@ import (
 var (
 	BinaryOps types.OpFuncMap = make(types.OpFuncMap)
 
-	defaultBinaryOpValidate types.ValidateCb = func(args ...uint64) (uint64, error) {
+	defaultBinaryOpValidate types.ValidateCb = func(args ...uint64) (uint64, bool, error) {
 		if len(args) != 2 {
 			panic("require two params")
 		}
@@ -28,37 +28,36 @@ var (
 			switch a {
 			case types.TypeIntArg, types.TypeFloatArg:
 				if b&^types.TypeNonFormattedStringArg == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, errors.New("warning")
+					return types.TypeIntArg | types.TypeFloatArg, true, nil
 				}
 				if b&^(types.TypeNumberLikeArg|types.TypeDatetimeLikeStringArg) == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, nil
+					return types.TypeIntArg | types.TypeFloatArg, false, nil
 				}
 			case types.TypeNonFormattedStringArg:
 				if b&^types.TypeStringArg == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, nil
+					return types.TypeIntArg | types.TypeFloatArg, false, nil
 				}
 				if b&^types.TypeDatetimeArg == 0 {
 					// return ERROR 1525
-					return 0, nil
+					return 0, false, errors.New("invalid type")
 				}
 				if b&^types.TypeNumberLikeStringArg == 0 {
-					// warning
-					return types.TypeIntArg | types.TypeFloatArg, errors.New("warning")
+					return types.TypeIntArg | types.TypeFloatArg, false, nil
 				}
 			case types.TypeNumberLikeStringArg:
 				if b&^(types.TypeNumberLikeStringArg|types.TypeDatetimeLikeStringArg) == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, nil
+					return types.TypeIntArg | types.TypeFloatArg, false, nil
 				}
 				if b&^types.TypeDatetimeArg == 0 {
-					return 0, nil
+					return 0, false, errors.New("invalid type")
 				}
 			case types.TypeDatetimeArg:
 				if b&^types.TypeDatatimeLikeArg == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, nil
+					return types.TypeIntArg | types.TypeFloatArg, false, nil
 				}
 			case types.TypeDatetimeLikeStringArg:
 				if b&^types.TypeDatetimeLikeStringArg == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, nil
+					return types.TypeIntArg | types.TypeFloatArg, false, nil
 				}
 			}
 			a, b = b, a

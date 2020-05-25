@@ -33,17 +33,17 @@ var (
 		}
 		e.SetValue(true)
 		return e, nil
-	}, func(args ...uint64) (uint64, error) {
+	}, func(args ...uint64) (uint64, bool, error) {
 		// checking args validate?
 		if len(args) != 1 {
 			panic("require only one param")
 		}
 		arg := args[0]
 		if arg&^(types.TypeDatatimeLikeArg|types.TypeNumberLikeArg) == 0 {
-			return types.TypeIntArg | types.TypeFloatArg, nil
+			return types.TypeIntArg | types.TypeFloatArg, false, nil
 		}
 		if arg&^(types.TypeNonFormattedStringArg) == 0 {
-			return types.TypeIntArg | types.TypeFloatArg, errors.New("warning")
+			return types.TypeIntArg | types.TypeFloatArg, true, nil
 		}
 		panic("unreachable")
 	}, func(cb types.GenNodeCb, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {

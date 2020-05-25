@@ -17,7 +17,7 @@ type FnGenNodeCb = func(GenNodeCb, OpFuncEval, uint64) (ast.ExprNode, parser_dri
 /* return 0, nil for error typed inputs; 0, error for other error (e.g. arg amount)
 non-zero, nil for legal input; non-zero, error("warning") for warning
 */
-type ValidateCb = func(...uint64) (uint64, error)
+type ValidateCb = func(...uint64) (uint64, bool, error)
 
 type OpFuncEval interface {
 	GetMinArgs() int
@@ -133,9 +133,9 @@ func (o *BaseOpFunc) MakeArgTable(ignoreWarn bool) {
 	o.argTable = NewArgTable(o.maxArgs)
 	if o.maxArgs == 0 {
 		// such as NOW()
-		ret, err := o.validateParam()
-		if err != nil {
-			panic(fmt.Sprintf("call IsValidParam failed, err: %+v", err))
+		ret, warn, err := o.validateParam()
+		if err != nil || warn {
+			panic(fmt.Sprintf("call IsValidParam failed, err: %+v warn: %v", err, warn))
 		}
 		for ret != 0 {
 			i := ret &^ (ret - 1)
@@ -151,9 +151,9 @@ func (o *BaseOpFunc) MakeArgTable(ignoreWarn bool) {
 			cur := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			if len(cur) == o.maxArgs {
-				ret, err := o.validateParam(cur...)
-				if ret != 0 {
-					if ignoreWarn || err == nil {
+				ret, warn, err := o.validateParam(cur...)
+				if ret != 0 && err == nil {
+					if ignoreWarn || !warn {
 						for ret != 0 {
 							i := ret &^ (ret - 1)
 							o.argTable.Insert(i, cur...)
