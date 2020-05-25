@@ -66,7 +66,7 @@ func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int) ast.ExprNode {
 		panic("retry times exceed 3")
 	}
 
-	return g.rectifyCondition(node, val, ctx)
+	return g.rectifyCondition(node, val)
 }
 
 // walk on select stmt
@@ -79,7 +79,7 @@ func (g *Generator) SelectStmt(node *ast.SelectStmt, genCtx *GenCtx) (string, []
 	return sql, columnInfos, updatedPivotRows, err
 }
 
-func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueExpr, genCtx *GenCtx) ast.ExprNode {
+func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueExpr) ast.ExprNode {
 	// pthese := ast.ParenthesesExpr{}
 	// pthese.Expr = node
 	switch val.Kind() {

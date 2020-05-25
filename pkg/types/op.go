@@ -42,7 +42,7 @@ type OpFuncEval interface {
 type OpFuncIndex map[uint64]map[string]OpFuncEval
 
 func (idx *OpFuncIndex) RandOpFn(tp uint64) (OpFuncEval, error) {
-	if m, ok := (*idx)[tp]; !ok || m == nil || len(m) == 0 {
+	if m, ok := (*idx)[tp]; !ok || len(m) == 0 {
 		return nil, errors.New(fmt.Sprintf("no operations or functions return type: %d", tp))
 	} else {
 		keys := make([]string, 0)

@@ -11,7 +11,6 @@ import (
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/mysql"
-	parser_types "github.com/pingcap/parser/types"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 	"go.uber.org/zap"
@@ -104,21 +103,21 @@ func (g *Generator) constValueExpr(tp uint64) (ast.ValueExpr, parser_driver.Valu
 	}
 }
 
-func (g *Generator) columnExpr(genCtx *GenCtx, arg uint64) (*ast.ColumnNameExpr, parser_driver.ValueExpr, error) {
+func (g *Generator) columnExpr(genCtx *GenCtx, argTp uint64) (*ast.ColumnNameExpr, parser_driver.ValueExpr, error) {
 	val := parser_driver.ValueExpr{}
-	tables := &genCtx.ResultTables
+	tables := genCtx.ResultTables
 	if genCtx.IsInUpdateDeleteStmt || genCtx.IsInExprIndex {
-		tables = &genCtx.UsedTables
+		tables = genCtx.UsedTables
 	}
-	randTable := (*tables)[Rd(len(*tables))]
+	randTable := tables[Rd(len(tables))]
 	tempCols := make([]types.Column, 0)
 	for i := range randTable.Columns {
-		if TransStringType(randTable.Columns[i].Type)&arg != 0 {
+		if TransStringType(randTable.Columns[i].Type)&argTp != 0 {
 			tempCols = append(tempCols, randTable.Columns[i])
 		}
 	}
 	if len(tempCols) == 0 {
-		return nil, val, errors.New(fmt.Sprintf("no valid column as arg %d table %s", arg, randTable.Name))
+		return nil, val, errors.New(fmt.Sprintf("no valid column as arg %d table %s", argTp, randTable.Name))
 	}
 	randColumn := tempCols[Rd(len(tempCols))]
 	colName, typeStr := randColumn.Name, randColumn.Type
@@ -127,7 +126,6 @@ func (g *Generator) columnExpr(genCtx *GenCtx, arg uint64) (*ast.ColumnNameExpr,
 		Table: randTable.GetAliasName().ToModel(),
 		Name:  colName.ToModel(),
 	}
-	col.Type = parser_types.FieldType{}
 	col.SetType(tidb_types.NewFieldType(TransToMysqlType(TransStringType(typeStr))))
 
 	// no pivot rows

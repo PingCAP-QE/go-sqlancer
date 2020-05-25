@@ -27,7 +27,7 @@ var (
 		for i := 0; i < 2; i++ {
 			switch a {
 			case types.TypeIntArg, types.TypeFloatArg:
-				if b&^(types.TypeNonFormattedStringArg|types.TypeDatetimeLikeStringArg) == 0 {
+				if b&^types.TypeNonFormattedStringArg == 0 {
 					return types.TypeIntArg | types.TypeFloatArg, errors.New("warning")
 				}
 				if b&^(types.TypeNumberLikeArg|types.TypeDatetimeLikeStringArg) == 0 {

@@ -110,7 +110,7 @@ func (t *OpFuncArgNDTable) RandByFilter(args []*uint64, ret *uint64) ([]uint64, 
 func (t *OpFuncArgNDTable) Insert(ret uint64, args ...uint64) {
 	// here do NOT check duplicate records
 	if len(args) != t.n {
-		panic(fmt.Sprintf("arguments number doesnot match n: %d, args: %d", t.n, len(args)))
+		panic(fmt.Sprintf("arguments number does not match n: %d, args: %d", t.n, len(args)))
 	}
 	args = append(args, ret)
 	t.table = append(t.table, args)
