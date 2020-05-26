@@ -4,15 +4,17 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/chaos-mesh/go-sqlancer/pkg/types"
-	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
+	"go.uber.org/zap"
+
 	"github.com/juju/errors"
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/opcode"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
-	"go.uber.org/zap"
+
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
 var (
@@ -116,7 +118,7 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(Compare(a, b) > 0)
+		e.SetValue(util.Compare(a, b) > 0)
 		return e, nil
 	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.GT))
 
@@ -130,7 +132,7 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(Compare(a, b) < 0)
+		e.SetValue(util.Compare(a, b) < 0)
 		return e, nil
 	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.LT))
 
@@ -144,7 +146,7 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(Compare(a, b) != 0)
+		e.SetValue(util.Compare(a, b) != 0)
 		return e, nil
 	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.NE))
 
@@ -158,7 +160,7 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(Compare(a, b) == 0)
+		e.SetValue(util.Compare(a, b) == 0)
 		return e, nil
 	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.EQ))
 
@@ -172,7 +174,7 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(Compare(a, b) >= 0)
+		e.SetValue(util.Compare(a, b) >= 0)
 		return e, nil
 	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.GE))
 
@@ -186,7 +188,7 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(Compare(a, b) <= 0)
+		e.SetValue(util.Compare(a, b) <= 0)
 		return e, nil
 	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.LE))
 
@@ -200,7 +202,7 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(ConvertToBoolOrNull(a) != ConvertToBoolOrNull(b))
+		e.SetValue(util.ConvertToBoolOrNull(a) != util.ConvertToBoolOrNull(b))
 		return e, nil
 	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.LogicXor))
 
@@ -210,8 +212,8 @@ var (
 		}
 		a, b := v[0], v[1]
 		e := parser_driver.ValueExpr{}
-		boolA := ConvertToBoolOrNull(a)
-		boolB := ConvertToBoolOrNull(b)
+		boolA := util.ConvertToBoolOrNull(a)
+		boolB := util.ConvertToBoolOrNull(b)
 		if boolA*boolB == 0 {
 			e.SetValue(false)
 			return e, nil
@@ -230,8 +232,8 @@ var (
 		}
 		a, b := v[0], v[1]
 		e := parser_driver.ValueExpr{}
-		boolA := ConvertToBoolOrNull(a)
-		boolB := ConvertToBoolOrNull(b)
+		boolA := util.ConvertToBoolOrNull(a)
+		boolB := util.ConvertToBoolOrNull(b)
 		if boolA == 1 || boolB == 1 {
 			e.SetValue(true)
 			return e, nil
@@ -249,6 +251,6 @@ func init() {
 	// DONOT op on non-date format types
 	for _, f := range []*types.Op{Lt, Gt, Le, Ge, Ne, Eq, LogicXor, LogicAnd, LogicOr} {
 		BinaryOps.Add(f)
-		RegisterToOpFnIndex(f)
+		util.RegisterToOpFnIndex(f)
 	}
 }

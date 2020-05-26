@@ -94,8 +94,6 @@ func ConvertToBoolOrNull(a parser_driver.ValueExpr) int8 {
 
 func Compare(a, b parser_driver.ValueExpr) int {
 	res, _ := a.CompareDatum(&stmtctx.StatementContext{AllowInvalidDate: true, IgnoreTruncate: true}, &b.Datum)
-	// NOTE: err is warning, not really error
-	//fmt.Printf("@@compare a: %v t(a): %d b: %v r: %d err: %v\n", a.GetValue(), a.GetType().Tp, b.GetValue(), res, err)
 	return res
 }
 
@@ -160,6 +158,7 @@ func TransToMysqlType(i uint64) byte {
 	}
 }
 
+// CompareValue is only used in test cases
 func CompareValue(a, b parser_driver.ValueExpr) bool {
 	if a.Type.Tp != b.Type.Tp {
 		return false

@@ -85,13 +85,13 @@ func (t *OpFuncArgNDTable) Filter(args []*uint64, ret *uint64) ([][]uint64, erro
 				continue
 			}
 			if *j != i[idx] {
-				goto NEXT_LOOP
+				goto nextLoop
 			}
 		}
 		if ret == nil || *ret == i[len(i)-1] {
 			result = append(result, i[:])
 		}
-	NEXT_LOOP:
+	nextLoop:
 	}
 	if len(result) == 0 {
 		return nil, errors.New(fmt.Sprintf("empty set after filter, args: %+v, ret: %v", args, ret))
@@ -120,7 +120,7 @@ func NewArgTable(dimension int) ArgTable {
 	switch dimension {
 	case 0:
 		return new(OpFuncArg0DTable)
-	case 1, 2, 3:
+	case 1, 2, 3, 4, 5:
 		return &OpFuncArgNDTable{n: dimension, table: make([][]uint64, 0)}
 	default:
 		panic(fmt.Sprintf("more args (%d) are not supported present", dimension))
