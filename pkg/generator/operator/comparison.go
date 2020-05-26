@@ -69,4 +69,75 @@ var (
 		}
 		return node, value, nil
 	})
+
+	// expr IN (value,...)
+	In = types.NewOp(opcode.In, 2, 5, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) < 2 {
+			panic("error param numbers")
+		}
+		expr := v[0]
+		e := parser_driver.ValueExpr{}
+		if expr.Kind() == tidb_types.KindNull {
+			e.SetNull()
+			return e, nil
+		}
+		hasNull := false
+		for _, b := range v[1:] {
+			if b.Kind() == tidb_types.KindNull {
+				hasNull = true
+				continue
+			}
+			if util.Compare(expr, b) == 0 {
+				e.SetValue(1)
+				return e, nil
+			}
+		}
+		if hasNull {
+			e.SetNull()
+			return e, nil
+		}
+		e.SetValue(0)
+		return e, nil
+	}, func(argTyps ...uint64) (uint64, bool, error) {
+		exprType := argTyps[0]
+		for i := 1; i < len(argTyps); i++ {
+			if exprType != argTyps[i] {
+				return 0, false, errors.New("invalid type")
+			}
+		}
+		return types.TypeIntArg | types.TypeFloatArg, false, nil
+	}, func(cb types.GenNodeCb, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
+		op := this.(*types.BaseOpFunc)
+		argList, err := op.GetArgTable().Filter([]*uint64{nil}, &ret)
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		if len(argList) == 0 {
+			return nil, parser_driver.ValueExpr{}, errors.New(fmt.Sprintf("cannot find valid param for type(%d) returned", ret))
+		}
+		arg := argList[rand.Intn(len(argList))]
+		expr, value, err := cb(arg[0])
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		var list []ast.ExprNode
+		v := []parser_driver.ValueExpr{value}
+		for i := 1; i < len(arg); i++ {
+			expr, value, err := cb(arg[i])
+			if err != nil {
+				return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+			}
+			list = append(list, expr)
+			v = append(v, value)
+		}
+		value, err = op.Eval(v...)
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		node := &ast.PatternInExpr{
+			Expr: expr,
+			List: list,
+		}
+		return node, value, nil
+	})
 )
