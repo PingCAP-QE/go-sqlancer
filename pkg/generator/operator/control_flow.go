@@ -13,6 +13,7 @@ import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
+// https://dev.mysql.com/doc/refman/8.0/en/control-flow-functions.html#operator_case
 var (
 	// we limit case only two branches and no else branch here, so the min arg count is 3 and the max is 5
 	// CASE value WHEN [compare_value] THEN result [WHEN [compare_value] THEN result ...] END
@@ -95,4 +96,32 @@ var (
 		}
 		return node, result, nil
 	})
+
+	// IF(expr1,expr2,expr3)
+	// If expr1 is TRUE (expr1 <> 0 and expr1 <> NULL), IF() returns expr2. Otherwise, it returns expr3.
+	If = types.NewFn("IF", 3, 3, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 3 {
+			panic("error params number")
+		}
+		expr1 := v[0]
+		t := parser_driver.ValueExpr{}
+		t.SetValue(true)
+		if expr1.Kind() != tidb_types.KindNull && util.Compare(expr1, t) == 0 {
+			return v[1], nil
+		}
+		return v[2], nil
+	}, func(argTyps ...uint64) (uint64, bool, error) {
+		expr1Tp := argTyps[0]
+		expr2Tp := argTyps[1]
+		expr3Tp := argTyps[2]
+		if expr2Tp != expr3Tp {
+			return 0, false, errors.New("invalid type")
+		}
+		switch expr1Tp {
+		case types.TypeFloatArg, types.TypeIntArg:
+			return expr2Tp, false, nil
+		default:
+			return expr2Tp, true, nil
+		}
+	}, defaultFuncCallNodeCb)
 )
