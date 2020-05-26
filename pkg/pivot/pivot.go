@@ -14,9 +14,6 @@ import (
 	"github.com/juju/errors"
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/tidb/sessionctx/stmtctx"
-	tidb_types "github.com/pingcap/tidb/types"
-	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
@@ -168,13 +165,13 @@ func (p *Pivot) prepare(ctx context.Context) {
 			var dmlStmt string
 			switch Rd(2) {
 			case 0:
-				dmlStmt, err = p.GenerateDeleteDMLStmt(tables, *table)
+				dmlStmt, err = p.DeleteDMLStmt(tables, *table)
 				if err != nil {
 					// TODO: goto next generation
 					log.L().Error("generate delete stmt failed", zap.Error(err))
 				}
 			default:
-				dmlStmt, err = p.GenerateUpdateDMLStmt(tables, *table)
+				dmlStmt, err = p.UpdateDMLStmt(tables, *table)
 				if err != nil {
 					// TODO: goto next generation
 					log.L().Error("generate update stmt failed", zap.Error(err))
@@ -328,13 +325,14 @@ func (p *Pivot) addExprIndex() {
 		if n == nil {
 			continue
 		}
+		var sql string
 		if sql, err := BufferOut(n); err != nil {
 			// should never panic
 			panic(errors.Trace(err))
 		} else if _, err = p.Executor.GetConn().Select(sql); err != nil {
 			panic(errors.Trace(err))
 		}
-		fmt.Println("add one index on expression success")
+		fmt.Println("add one index on expression success SQL:" + sql)
 	}
 	fmt.Println("Create expression index successfully")
 }
@@ -362,7 +360,10 @@ func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 
 	exprs := make([]ast.ExprNode, 0)
 	for x := 0; x < Rd(3)+1; x++ {
-		exprs = append(exprs, p.WhereClauseAst(generator.NewGenCtx(false, true, []Table{table}, nil), 1))
+		gCtx := generator.NewGenCtx([]Table{table}, nil)
+		gCtx.IsInExprIndex = true
+		gCtx.EnableLeftRightJoin = false
+		exprs = append(exprs, &ast.ParenthesesExpr{Expr: p.WhereClauseAst(gCtx, 1)})
 	}
 	node := ast.CreateIndexStmt{}
 	node.IndexName = "idx_" + RdStringChar(5)
@@ -421,7 +422,7 @@ func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, e
 
 func (p *Pivot) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
 	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, *generator.GenCtx, error) {
-	genCtx := generator.NewGenCtx(true, false, usedTables, pivotRows)
+	genCtx := generator.NewGenCtx(usedTables, pivotRows)
 	stmtAst, err := p.SelectStmtAst(genCtx, p.Conf.Depth)
 	if err != nil {
 		return nil, "", nil, nil, nil, err
@@ -483,118 +484,6 @@ func (p *Pivot) checkRow(originRow map[string]*connection.QueryItem, columns []C
 		}
 	}
 	return true
-}
-
-func (p *Pivot) minifySelect(stmt *ast.SelectStmt, pivotRows map[string]*connection.QueryItem, usedTable []Table, columns []Column, genCtx *generator.GenCtx) (string, error) {
-	selectStmt := p.minifySubquery(stmt, stmt.Where, usedTable, pivotRows, columns)
-	// for those ast that we don't try to simplify
-	if selectStmt == nil {
-		selectStmt = stmt
-	}
-	p.RectifyCondition(selectStmt.Where, genCtx)
-	usedColumns := p.CollectColumnNames(selectStmt.Where)
-	selectStmt.Fields.Fields = make([]*ast.SelectField, 0)
-	for _, column := range usedColumns {
-		name := column
-		selectField := &ast.SelectField{
-			Expr: &ast.ColumnNameExpr{
-				Name: &name,
-			},
-		}
-		selectStmt.Fields.Fields = append(selectStmt.Fields.Fields, selectField)
-	}
-	if len(selectStmt.Fields.Fields) == 0 {
-		selectStmt.Fields.Fields = append(selectStmt.Fields.Fields, &ast.SelectField{
-			Offset:   0,
-			WildCard: &ast.WildCardField{},
-		})
-	}
-	sql, err := BufferOut(selectStmt)
-	if err != nil {
-		return "", err
-	}
-
-	return sql, nil
-}
-
-func (p *Pivot) minifySubquery(stmt *ast.SelectStmt, e ast.Node, usedTable []Table, pivotRows map[string]*connection.QueryItem, columns []Column) *ast.SelectStmt {
-	switch t := e.(type) {
-	case *ast.ParenthesesExpr:
-		result := p.minifySubquery(stmt, t.Expr, usedTable, pivotRows, columns)
-		return result
-	case *ast.BinaryOperationExpr:
-		subSelectStmt := p.minifySubquery(stmt, t.L, usedTable, pivotRows, columns)
-		if subSelectStmt != nil {
-			return subSelectStmt
-		}
-		subSelectStmt = p.minifySubquery(stmt, t.R, usedTable, pivotRows, columns)
-		if subSelectStmt != nil {
-			return subSelectStmt
-		}
-		subSelectStmt = &ast.SelectStmt{
-			SelectStmtOpts: &ast.SelectStmtOpts{
-				SQLCache: true,
-			},
-			From:   stmt.From,
-			Fields: stmt.Fields,
-			Where:  t,
-		}
-		exist, err := p.ExecAndVerify(subSelectStmt, pivotRows, columns)
-		if err != nil {
-			log.L().Error("occurred an error", zap.Error(err))
-			return nil
-		}
-		// FIXME: tableMap
-		if !p.verifyExistence(subSelectStmt, usedTable, pivotRows, exist, nil) {
-			return subSelectStmt
-		}
-		return nil
-	case *ast.UnaryOperationExpr:
-		subSelectStmt := p.minifySubquery(stmt, t.V, usedTable, pivotRows, columns)
-		if subSelectStmt != nil {
-			return subSelectStmt
-		}
-		subSelectStmt = &ast.SelectStmt{
-			SelectStmtOpts: &ast.SelectStmtOpts{
-				SQLCache: true,
-			},
-			From:   stmt.From,
-			Fields: stmt.Fields,
-			Where:  t,
-		}
-		exist, err := p.ExecAndVerify(subSelectStmt, pivotRows, columns)
-		if err != nil {
-			log.L().Error("occurred an error", zap.Error(err))
-			return nil
-		}
-		// FIXME: table map
-		if !p.verifyExistence(subSelectStmt, usedTable, pivotRows, exist, nil) {
-			// pivotRows aren't in sub query stmt, we found a invalid sub query
-			return subSelectStmt
-		}
-		return nil
-	default:
-		return nil
-	}
-}
-
-func (p *Pivot) verifyExistence(sel *ast.SelectStmt, usedTables []Table, pivotRows map[string]*connection.QueryItem, exist bool, genCtx *generator.GenCtx) bool {
-	where := sel.Where
-	out := generator.Evaluate(where, genCtx)
-
-	switch out.Kind() {
-	case tidb_types.KindNull:
-		return exist == false
-	default:
-		// make it true
-		zero := parser_driver.ValueExpr{}
-		zero.SetInt64(0)
-		res, _ := out.CompareDatum(&stmtctx.StatementContext{AllowInvalidDate: true, IgnoreTruncate: true}, &zero.Datum)
-		if res == 0 {
-			return exist == false
-		}
-		return exist
-	}
 }
 
 func (p *Pivot) printPivotRows(pivotRows map[string]*connection.QueryItem) {

@@ -33,7 +33,7 @@ func helperMakeTable() *types.Table {
 func TestDeleteStmt(t *testing.T) {
 	p, _ := NewPivot(NewConfig())
 	p.Tables = []types.Table{*helperMakeTable(), *helperMakeTable()}
-	s, err := p.GenerateDeleteDMLStmt(p.Tables, p.Tables[0])
+	s, err := p.DeleteDMLStmt(p.Tables, p.Tables[0])
 	fmt.Println(s)
 	assert.NoError(t, err)
 }
@@ -41,7 +41,7 @@ func TestDeleteStmt(t *testing.T) {
 func TestUpdateStmt(t *testing.T) {
 	p, _ := NewPivot(NewConfig())
 	p.Tables = []types.Table{*helperMakeTable(), *helperMakeTable()}
-	s, err := p.GenerateUpdateDMLStmt(p.Tables, p.Tables[0])
+	s, err := p.UpdateDMLStmt(p.Tables, p.Tables[0])
 	fmt.Println(s)
 	assert.NoError(t, err)
 }

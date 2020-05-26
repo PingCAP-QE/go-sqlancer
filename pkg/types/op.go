@@ -4,36 +4,20 @@ import (
 	"fmt"
 	"math/rand"
 
+	"github.com/juju/errors"
+	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/opcode"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 )
 
-// TODO: can it copy from tidb/types?
-const (
-	StringArg           = 1 << iota
-	DatetimeAsStringArg = 1 << iota // datetime formatted string: "1990-10-11"
-	NumberLikeStringArg = 1 << iota // "1.001" "42f_xa" start with number
-	IntArg              = 1 << iota
-	FloatArg            = 1 << iota
-	DatetimeArg         = 1 << iota
-	NullArg             = 1 << iota
-
-	AnyArg = 0xFFFF
-)
-
-func NewAcceptTypeMap() *map[int]int {
-	m := make(map[int]int)
-	m[StringArg] = AnyArg
-	m[DatetimeAsStringArg] = AnyArg
-	m[NumberLikeStringArg] = AnyArg
-	m[IntArg] = AnyArg
-	m[FloatArg] = AnyArg
-	m[DatetimeArg] = AnyArg
-	m[NullArg] = AnyArg
-	return &m
-}
-
 type Evaluable = func(...parser_driver.ValueExpr) (parser_driver.ValueExpr, error)
+type GenNodeCb = func(uint64) (ast.ExprNode, parser_driver.ValueExpr, error)
+type FnGenNodeCb = func(GenNodeCb, OpFuncEval, uint64) (ast.ExprNode, parser_driver.ValueExpr, error)
+
+/* return 0, nil for error typed inputs; 0, error for other error (e.g. arg amount)
+non-zero, nil for legal input; non-zero, error("warning") for warning
+*/
+type ValidateCb = func(...uint64) (uint64, bool, error)
 
 type OpFuncEval interface {
 	GetMinArgs() int
@@ -44,53 +28,59 @@ type OpFuncEval interface {
 	GetName() string
 	SetName(string)
 
-	GetAcceptType(int, int) int
-	SetAcceptType(int, int, int)
+	MakeArgTable(bool)
+	GetArgTable() ArgTable
 
+	GetPossibleReturnType() uint64
+	// IsValidParam(...uint64) (uint64, error)
 	Eval(...parser_driver.ValueExpr) (parser_driver.ValueExpr, error)
+	// for generate node
+	Node(GenNodeCb, uint64) (ast.ExprNode, parser_driver.ValueExpr, error)
 }
 
-type OpFuncIndex map[string]OpFuncEval
+// return type as key; f => str|int : [TypeStr]:['f':f], [TypeInt]:['f':f]
+type OpFuncIndex map[uint64]map[string]OpFuncEval
 
-func (idx *OpFuncIndex) Eval(name string, vals ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+func (idx *OpFuncIndex) RandOpFn(tp uint64) (OpFuncEval, error) {
+	if m, ok := (*idx)[tp]; !ok || len(m) == 0 {
+		return nil, errors.New(fmt.Sprintf("no operations or functions return type: %d", tp))
+	} else {
+		keys := make([]string, 0)
+		for k := range m {
+			keys = append(keys, k)
+		}
+		return m[keys[rand.Intn(len(keys))]], nil
+	}
+}
+
+type OpFuncMap map[string]OpFuncEval
+
+func (m *OpFuncMap) Eval(name string, vals ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 	var e parser_driver.ValueExpr
-	if ev, ok := (*idx)[name]; !ok {
+	if ev, ok := (*m)[name]; !ok {
 		return e, fmt.Errorf("no such function or op with opcode: %s", name)
 	} else {
 		return ev.Eval(vals...)
 	}
 }
 
-func (idx *OpFuncIndex) Add(o OpFuncEval) {
-	(*idx)[o.GetName()] = o
+func (m *OpFuncMap) Add(o OpFuncEval) {
+	(*m)[o.GetName()] = o
 }
 
-func (idx *OpFuncIndex) Find(name string) OpFuncEval {
-	return (*idx)[name]
-}
-
-func (idx *OpFuncIndex) Rand() OpFuncEval {
-	rd := rand.Intn(len(*idx))
-	var f OpFuncEval
-	for _, f = range *idx {
-		if rd <= 0 {
-			return f
-		}
-		rd--
-	}
-	return f
+func (m *OpFuncMap) Find(name string) OpFuncEval {
+	return (*m)[name]
 }
 
 type BaseOpFunc struct {
-	// TODO: support 3 or more args limitation
-	// [0] indicates first param; if args are infinite, last item will be duplicated
-	// [0] is [StringArg] => [AnyArg^DatetimeArg]: first arg is string then datetime is invalid as second arg
-	acceptType []map[int]int
 	// min and max; -1 indicates infinite
-	minArgs int
-	maxArgs int
-	name    string
-	evalFn  Evaluable
+	minArgs       int
+	maxArgs       int
+	name          string
+	evalFn        Evaluable
+	nodeFn        FnGenNodeCb
+	validateParam ValidateCb
+	argTable      ArgTable
 }
 
 func (o *BaseOpFunc) GetMinArgs() int {
@@ -117,27 +107,86 @@ func (o *BaseOpFunc) SetName(n string) {
 	o.name = n
 }
 
-func (o *BaseOpFunc) GetAcceptType(pos, tp int) int {
-	return o.acceptType[pos][tp]
-}
-
-func (o *BaseOpFunc) SetAcceptType(pos, tp, val int) {
-	o.acceptType[pos][tp] = val
-}
-
-func (o *BaseOpFunc) InitAcceptType(length int) {
-	o.acceptType = make([]map[int]int, length)
-	for i := 0; i < length; i++ {
-		o.acceptType[i] = *NewAcceptTypeMap()
-	}
-}
-
 func (o *BaseOpFunc) SetEvalFn(fn Evaluable) {
 	o.evalFn = fn
 }
 
 func (o *BaseOpFunc) Eval(vals ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 	return o.evalFn(vals...)
+}
+
+func (o *BaseOpFunc) SetNodeFn(fn FnGenNodeCb) {
+	o.nodeFn = fn
+}
+
+func (o *BaseOpFunc) Node(fn GenNodeCb, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
+	// ? we can make o as a param
+	// ? so that we can downcast o to Op/Fn/CastFn to call their owned methods
+	return o.nodeFn(fn, o, ret)
+}
+
+func (o *BaseOpFunc) SetIsValidParam(fn ValidateCb) {
+	o.validateParam = fn
+}
+
+func (o *BaseOpFunc) MakeArgTable(ignoreWarn bool) {
+	o.argTable = NewArgTable(o.maxArgs)
+	if o.maxArgs == 0 {
+		// such as NOW()
+		ret, warn, err := o.validateParam()
+		if err != nil || warn {
+			panic(fmt.Sprintf("call IsValidParam failed, err: %+v warn: %v", err, warn))
+		}
+		for ret != 0 {
+			i := ret &^ (ret - 1)
+			o.argTable.Insert(i)
+			ret = ret & (ret - 1)
+		}
+	} else {
+		stack := make([][]uint64, 0)
+		for _, i := range SupportArgs {
+			stack = append(stack, []uint64{i})
+		}
+		for len(stack) > 0 {
+			cur := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			if len(cur) == o.maxArgs {
+				ret, warn, err := o.validateParam(cur...)
+				if ret != 0 && err == nil {
+					if ignoreWarn || !warn {
+						for ret != 0 {
+							i := ret &^ (ret - 1)
+							o.argTable.Insert(i, cur...)
+							ret = ret & (ret - 1)
+						}
+					}
+				}
+			} else {
+				for _, i := range SupportArgs {
+					stack = append(stack, append(cur, i))
+				}
+			}
+		}
+	}
+}
+
+func (o *BaseOpFunc) GetPossibleReturnType() (returnType uint64) {
+	for _, i := range SupportArgs {
+		args := make([]*uint64, 0)
+		for j := 0; j < o.maxArgs; j++ {
+			args = append(args, nil)
+		}
+		tmp := i
+		res, err := o.argTable.Filter(args, &tmp)
+		if err == nil && len(res) != 0 {
+			returnType |= i
+		}
+	}
+	return
+}
+
+func (o *BaseOpFunc) GetArgTable() ArgTable {
+	return o.argTable
 }
 
 type Op struct {
@@ -155,13 +204,16 @@ func (o *Op) SetOpcode(code opcode.Op) {
 	o.name = opcode.Ops[code]
 }
 
-func NewOp(code opcode.Op, min, max int, fn Evaluable) *Op {
+func NewOp(code opcode.Op, min, max int, fn Evaluable, vp ValidateCb, gn FnGenNodeCb) *Op {
 	var o Op
 	o.SetOpcode(code)
 	o.SetMinArgs(min)
 	o.SetMaxArgs(max)
 	o.SetEvalFn(fn)
-	o.InitAcceptType(2)
+	o.SetIsValidParam(vp)
+	o.SetNodeFn(gn)
+	// TODO: give a context
+	o.MakeArgTable(true)
 	return &o
 }
 
@@ -169,13 +221,16 @@ type Fn struct {
 	BaseOpFunc
 }
 
-func NewFn(name string, min, max int, fn Evaluable) *Fn {
+func NewFn(name string, min, max int, fn Evaluable, vp ValidateCb, gn FnGenNodeCb) *Fn {
 	var f Fn
 	f.SetName(name)
 	f.SetMaxArgs(max)
 	f.SetMinArgs(min)
 	f.SetEvalFn(fn)
-	f.InitAcceptType(2)
+	f.SetIsValidParam(vp)
+	f.SetNodeFn(gn)
+	// TODO: give a context
+	f.MakeArgTable(true)
 	return &f
 }
 
@@ -203,7 +258,7 @@ func (c *CastFn) SetToTp(tp int) {
 }
 
 // different behavior from other functions
-func NewCastFn(castTp int, fn Evaluable) *CastFn {
+func NewCastFn(castTp int, fn Evaluable, vp ValidateCb, gn FnGenNodeCb) *CastFn {
 	var f CastFn
 	// TODO: caseFnTp to readable name
 	f.SetName(fmt.Sprintf("%d", castTp))
@@ -211,6 +266,11 @@ func NewCastFn(castTp int, fn Evaluable) *CastFn {
 	f.SetMaxArgs(1)
 	f.SetMinArgs(1)
 	f.SetEvalFn(fn)
-	f.InitAcceptType(1)
+	f.SetNodeFn(gn)
+
+	// ? fix me: return type is related to castTp
+	f.SetIsValidParam(vp)
+	// TODO: give a context
+	f.MakeArgTable(true)
 	return &f
 }
