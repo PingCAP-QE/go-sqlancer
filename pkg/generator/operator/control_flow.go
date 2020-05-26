@@ -124,4 +124,51 @@ var (
 			return expr2Tp, true, nil
 		}
 	}, defaultFuncCallNodeCb)
+
+	// IFNULL(expr1,expr2)
+	// If expr1 is not NULL, IFNULL() returns expr1; otherwise it returns expr2.
+	IfNull = types.NewFn("IFNULL", 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error params number")
+		}
+		expr1 := v[0]
+		expr2 := v[1]
+		if expr1.Kind() != tidb_types.KindNull {
+			return expr1, nil
+		}
+		return expr2, nil
+	}, func(argTyps ...uint64) (uint64, bool, error) {
+		expr1Tp := argTyps[0]
+		expr2Tp := argTyps[1]
+		if expr1Tp != expr2Tp {
+			return 0, false, errors.New("invalid type")
+		}
+		return expr1Tp, false, nil
+	}, defaultFuncCallNodeCb)
+
+	// NULLIF(expr1,expr2)
+	// Returns NULL if expr1 = expr2 is true, otherwise returns expr1. This is the same as CASE WHEN expr1 = expr2 THEN NULL ELSE expr1 END.
+	NullIf = types.NewFn("NULLIF", 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error params number")
+		}
+		expr1 := v[0]
+		expr2 := v[1]
+		e := parser_driver.ValueExpr{}
+		e.SetNull()
+		if expr1.Kind() == tidb_types.KindNull || expr2.Kind() == tidb_types.KindNull {
+			return e, nil
+		}
+		if util.Compare(expr1, expr2) == 0 {
+			return e, nil
+		}
+		return expr1, nil
+	}, func(argTyps ...uint64) (uint64, bool, error) {
+		expr1Tp := argTyps[0]
+		expr2Tp := argTyps[1]
+		if expr1Tp != expr2Tp {
+			return 0, false, errors.New("invalid type")
+		}
+		return expr1Tp, false, nil
+	}, defaultFuncCallNodeCb)
 )
