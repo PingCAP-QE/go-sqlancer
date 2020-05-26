@@ -15,39 +15,35 @@ import (
 
 // https://dev.mysql.com/doc/refman/8.0/en/control-flow-functions.html#operator_case
 var (
-	// we limit case only two branches and no else branch here, so the min arg count is 3 and the max is 5
-	// CASE value WHEN [compare_value] THEN result [WHEN [compare_value] THEN result ...] END
-	Case = types.NewFn("CASE", 3, 5, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
-		if len(v) < 3 || len(v) > 5 || len(v)%2 != 1 {
+	// we limit case only two branches and no else branch here, so the min arg count is 2 and the max is 4
+	// CASE WHEN [compare_value] THEN result [WHEN [compare_value] THEN result ...] END
+	Case = types.NewFn("CASE", 2, 4, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 && len(v) != 4 {
 			panic("error params number")
 		}
 		e := parser_driver.ValueExpr{}
-		caseValue := v[0]
-		// if caseValue is a null caseValue, no branches' compare_value can match it, so we return null directly because there's no else branch.
-		if caseValue.Kind() == tidb_types.KindNull {
-			e.SetNull()
-			return e, nil
-		}
-		for compareValueIdx := 1; compareValueIdx < len(v); compareValueIdx += 2 {
+		e.SetNull()
+		for compareValueIdx := 0; compareValueIdx < len(v); compareValueIdx += 2 {
 			compareValue := v[compareValueIdx]
 			resultValue := v[compareValueIdx+1]
-			if util.Compare(caseValue, compareValue) == 0 {
+			t := parser_driver.ValueExpr{}
+			t.SetValue(1)
+			if util.Compare(t, compareValue) == 0 {
 				return resultValue, nil
 			}
 		}
-		e.SetNull()
 		return e, nil
 	}, func(argTyps ...uint64) (uint64, bool, error) {
 		// compare all compare value's type, and we don't consider implicit type cast for the sake of simplicity
-		caseTp := argTyps[0]
-		for i := 1; i < len(argTyps); i += 2 {
-			if caseTp != argTyps[i] {
+		whenTp := argTyps[0]
+		for i := 0; i < len(argTyps); i += 2 {
+			if whenTp != argTyps[i] {
 				return 0, false, errors.New("invalid type")
 			}
 		}
 		// And we compare all return values in the same way
-		valueTp := argTyps[2]
-		for i := 2; i < len(argTyps); i += 2 {
+		valueTp := argTyps[1]
+		for i := 1; i < len(argTyps); i += 2 {
 			if valueTp != argTyps[i] {
 				return 0, false, errors.New("invalid type")
 			}
@@ -64,18 +60,14 @@ var (
 		}
 		whenCount := int(util.RdRange(1, 2))
 		arg := argList[rand.Intn(len(argList))]
-		caseNode, caseValue, err := cb(arg[0])
-		if err != nil {
-			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
-		}
 		var whenClauses []*ast.WhenClause
-		var v = []parser_driver.ValueExpr{caseValue}
+		var v []parser_driver.ValueExpr
 		for i := 0; i < whenCount; i++ {
-			whenNode, value, err := cb(arg[whenCount*2+1])
+			whenNode, value, err := cb(arg[whenCount*2])
 			if err != nil {
 				return nil, parser_driver.ValueExpr{}, errors.Trace(err)
 			}
-			whenResultNode, resultValue, err := cb(arg[whenCount*2+2])
+			whenResultNode, resultValue, err := cb(arg[whenCount*2+1])
 			if err != nil {
 				return nil, parser_driver.ValueExpr{}, errors.Trace(err)
 			}
@@ -86,7 +78,7 @@ var (
 			v = append(v, value, resultValue)
 		}
 		node := &ast.CaseExpr{
-			Value:       caseNode,
+			Value:       nil,
 			WhenClauses: whenClauses,
 			ElseClause:  nil,
 		}
