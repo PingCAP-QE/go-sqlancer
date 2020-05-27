@@ -717,7 +717,7 @@ func TestLogicOrCaseFloat_2(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(0.0000)
 	b := parser_driver.ValueExpr{}
-	b.SetValue(-1.00001E10)
+	b.SetValue(-1.00001e10)
 	expected := parser_driver.ValueExpr{}
 	expected.SetValue(true)
 	actual, err := LogicOr.Eval(a, b)
@@ -729,7 +729,7 @@ func TestLogicOrCaseFloat_3(t *testing.T) {
 	a := parser_driver.ValueExpr{}
 	a.SetValue(0.0000)
 	b := parser_driver.ValueExpr{}
-	b.SetValue(-0.000E10)
+	b.SetValue(-0.000e10)
 	expected := parser_driver.ValueExpr{}
 	expected.SetValue(false)
 	actual, err := LogicOr.Eval(a, b)
@@ -898,7 +898,7 @@ func TestLogicAndCaseString_4(t *testing.T) {
 
 func TestLogicAndCaseFloat_1(t *testing.T) {
 	a := parser_driver.ValueExpr{}
-	a.SetValue(1.00001E2)
+	a.SetValue(1.00001e2)
 	b := parser_driver.ValueExpr{}
 	b.SetValue("-1.001")
 	expected := parser_driver.ValueExpr{}

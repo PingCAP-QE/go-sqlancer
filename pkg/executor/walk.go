@@ -32,6 +32,8 @@ var (
 		tidbTypes.FromDate(2010, 1, 1, 0, 0, 0, 0),
 		tidbTypes.FromDate(2020, 1, 1, 0, 0, 0, 0),
 	}
+
+	autoOpts = []ast.ColumnOptionType{ast.ColumnOptionAutoIncrement, ast.ColumnOptionAutoRandom}
 )
 
 func (e *Executor) walkDDLCreateTable(index int, node *ast.CreateTableStmt, colTypes []string) (string, string, error) {
@@ -43,7 +45,7 @@ func (e *Executor) walkDDLCreateTable(index int, node *ast.CreateTableStmt, colT
 	idCol := &ast.ColumnDef{
 		Name:    &ast.ColumnName{Name: model.NewCIStr(idColName)},
 		Tp:      idFieldType,
-		Options: []*ast.ColumnOption{{Tp: ast.ColumnOptionAutoIncrement}},
+		Options: []*ast.ColumnOption{{Tp: autoOpts[util.Rd(len(autoOpts))]}},
 	}
 	node.Cols = append(node.Cols, idCol)
 	makeConstraintPrimaryKey(node, idColName)
