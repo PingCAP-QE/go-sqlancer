@@ -39,7 +39,7 @@ var (
 			panic("require only one param")
 		}
 		arg := args[0]
-		if arg&^(types.TypeDatatimeLikeArg|types.TypeNumberLikeArg) == 0 {
+		if arg&^(types.TypeDatetimeLikeArg|types.TypeNumberLikeArg) == 0 {
 			return types.TypeIntArg | types.TypeFloatArg, false, nil
 		}
 		if arg&^(types.TypeNonFormattedStringArg) == 0 {

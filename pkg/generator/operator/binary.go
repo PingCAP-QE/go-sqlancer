@@ -56,7 +56,7 @@ var (
 					return 0, false, errors.New("invalid type")
 				}
 			case types.TypeDatetimeArg:
-				if b&^types.TypeDatatimeLikeArg == 0 {
+				if b&^types.TypeDatetimeLikeArg == 0 {
 					return resultType, false, nil
 				}
 			case types.TypeDatetimeLikeStringArg:

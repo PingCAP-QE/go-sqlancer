@@ -112,6 +112,8 @@ func TestBetween(t *testing.T) {
 		{-2.0, []interface{}{-1000000.0, math.MaxFloat64}, truly},
 		{math.MinInt64, []interface{}{math.MinInt64, nil}, null},
 		{"str", []interface{}{"st", "str2"}, truly},
+		{0, []interface{}{nil, -2034522382449724946}, falsely},
+		{0, []interface{}{nil, 0}, null},
 	}
 
 	for i, kase := range cases {
@@ -149,6 +151,7 @@ func TestStrCmp(t *testing.T) {
 		{"text", "text", eq},
 		{nil, "text", null},
 		{"text", nil, null},
+		{"J_%AEQ", 0, gt},
 	}
 
 	for i, kase := range cases {

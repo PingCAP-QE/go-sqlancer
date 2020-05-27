@@ -18,8 +18,8 @@ const (
 	TypeIntArg                uint64 = 1 << iota
 	TypeFloatArg              uint64 = 1 << iota
 	TypeDatetimeArg           uint64 = 1 << iota
-	TypeDatatimeLikeArg       uint64 = TypeDatetimeArg | TypeDatetimeLikeStringArg
-	TypeStringArg             uint64 = TypeNonFormattedStringArg | TypeDatatimeLikeArg | TypeNumberLikeStringArg
+	TypeDatetimeLikeArg       uint64 = TypeDatetimeArg | TypeDatetimeLikeStringArg
+	TypeStringArg             uint64 = TypeNonFormattedStringArg | TypeDatetimeLikeArg | TypeNumberLikeStringArg
 	TypeNumberArg             uint64 = TypeIntArg | TypeFloatArg
 	TypeNumberLikeArg         uint64 = TypeNumberArg | TypeNumberLikeStringArg
 	// Array, Enum, Blob to be completed

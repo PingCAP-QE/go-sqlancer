@@ -25,7 +25,7 @@ var (
 		arg := argList[rand.Intn(len(argList))]
 		var v []parser_driver.ValueExpr
 		var args []ast.ExprNode
-		for i := 0; i < len(arg); i++ {
+		for i := 0; i < len(arg)-1; i++ {
 			expr, value, err := cb(arg[i])
 			if err != nil {
 				return nil, parser_driver.ValueExpr{}, errors.Trace(err)

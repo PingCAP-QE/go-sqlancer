@@ -113,7 +113,7 @@ var (
 		if err != nil {
 			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
 		}
-		if len(argList) == 0 {
+		if len(argList) < 3 {
 			return nil, parser_driver.ValueExpr{}, errors.New(fmt.Sprintf("cannot find valid param for type(%d) returned", ret))
 		}
 		arg := argList[rand.Intn(len(argList))]
@@ -123,7 +123,7 @@ var (
 		}
 		var list []ast.ExprNode
 		v := []parser_driver.ValueExpr{value}
-		for i := 1; i < len(arg); i++ {
+		for i := 1; i < len(arg)-1; i++ {
 			expr, value, err := cb(arg[i])
 			if err != nil {
 				return nil, parser_driver.ValueExpr{}, errors.Trace(err)
@@ -149,18 +149,20 @@ var (
 			panic("error param numbers")
 		}
 		expr, min, max := v[0], v[1], v[2]
-		e := parser_driver.ValueExpr{}
-		if expr.Kind() == tidb_types.KindNull || min.Kind() == tidb_types.KindNull || max.Kind() == tidb_types.KindNull {
-			e.SetNull()
-			return e, nil
+		//  This is equivalent to the expression (min <= expr AND expr <= max) if all the arguments are of the same type
+		leftExpr := parser_driver.ValueExpr{}
+		if min.Kind() == tidb_types.KindNull || expr.Kind() == tidb_types.KindNull {
+			leftExpr.SetNull()
+		} else {
+			leftExpr.SetValue(util.Compare(min, expr) <= 0)
 		}
-		// This is equivalent to the expression (min <= expr AND expr <= max) if all the arguments are of the same type
-		if util.Compare(min, expr) <= 0 && util.Compare(expr, max) <= 0 {
-			e.SetValue(1)
-			return e, nil
+		rightExpr := parser_driver.ValueExpr{}
+		if expr.Kind() == tidb_types.KindNull || max.Kind() == tidb_types.KindNull {
+			rightExpr.SetNull()
+		} else {
+			rightExpr.SetValue(util.Compare(expr, max) <= 0)
 		}
-		e.SetValue(0)
-		return e, nil
+		return LogicAnd.Eval(leftExpr, rightExpr)
 	}, func(argTyps ...uint64) (uint64, bool, error) {
 		// for the sake of simplicity, we require expr, min and max are same type
 		exprType := argTyps[0]
@@ -176,7 +178,7 @@ var (
 		if err != nil {
 			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
 		}
-		if len(argList) == 0 {
+		if len(argList) < 4 {
 			return nil, parser_driver.ValueExpr{}, errors.New(fmt.Sprintf("cannot find valid param for type(%d) returned", ret))
 		}
 		arg := argList[rand.Intn(len(argList))]
@@ -223,12 +225,16 @@ var (
 			switch expr.Kind() {
 			case tidb_types.KindInt64:
 				strValue = fmt.Sprintf("%d", expr.GetInt64())
-				v[i] = parser_driver.ValueExpr{}
-				v[i].SetString(strValue, "")
+				exprs[i] = parser_driver.ValueExpr{}
+				exprs[i].SetString(strValue, "")
 			case tidb_types.KindUint64:
 				strValue = fmt.Sprintf("%d", expr.GetUint64())
-				v[i] = parser_driver.ValueExpr{}
-				v[i].SetString(strValue, "")
+				exprs[i] = parser_driver.ValueExpr{}
+				exprs[i].SetString(strValue, "")
+			case tidb_types.KindMysqlTime:
+				strValue = fmt.Sprintf("%s", expr.GetMysqlTime().String())
+				exprs[i] = parser_driver.ValueExpr{}
+				exprs[i].SetString(strValue, "")
 			case tidb_types.KindString:
 			default:
 				panic("unreachable!")
@@ -253,7 +259,7 @@ var (
 		if err != nil {
 			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
 		}
-		if len(argList) == 0 {
+		if len(argList) < 3 {
 			return nil, parser_driver.ValueExpr{}, errors.New(fmt.Sprintf("cannot find valid param for type(%d) returned", ret))
 		}
 		arg := argList[rand.Intn(len(argList))]
@@ -276,3 +282,9 @@ var (
 		return node, result, nil
 	})
 )
+
+func init() {
+	for _, f := range []types.OpFuncEval{Between, In, IsNull, NullEq, StrCmp} {
+		util.RegisterToOpFnIndex(f)
+	}
+}

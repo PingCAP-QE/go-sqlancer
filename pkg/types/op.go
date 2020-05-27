@@ -163,7 +163,9 @@ func (o *BaseOpFunc) MakeArgTable(ignoreWarn bool) {
 				}
 			} else {
 				for _, i := range SupportArgs {
-					stack = append(stack, append(cur, i))
+					newCur := make([]uint64, len(cur))
+					copy(newCur, cur)
+					stack = append(stack, append(newCur, i))
 				}
 			}
 		}

@@ -58,7 +58,7 @@ var (
 		if err != nil {
 			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
 		}
-		if len(argList) == 0 {
+		if len(argList) < 5 {
 			return nil, parser_driver.ValueExpr{}, errors.New(fmt.Sprintf("cannot find valid param for type(%d) returned", ret))
 		}
 		whenCount := int(util.RdRange(1, 2))
@@ -151,9 +151,6 @@ var (
 		expr2 := v[1]
 		e := parser_driver.ValueExpr{}
 		e.SetNull()
-		if expr1.Kind() == tidb_types.KindNull || expr2.Kind() == tidb_types.KindNull {
-			return e, nil
-		}
 		if util.Compare(expr1, expr2) == 0 {
 			return e, nil
 		}
@@ -167,3 +164,9 @@ var (
 		return expr1Tp, false, nil
 	}, defaultFuncCallNodeCb)
 )
+
+func init() {
+	for _, f := range []types.OpFuncEval{Case, If, IfNull, NullIf} {
+		util.RegisterToOpFnIndex(f)
+	}
+}

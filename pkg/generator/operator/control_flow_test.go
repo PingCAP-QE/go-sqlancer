@@ -80,6 +80,9 @@ func TestNullIf(t *testing.T) {
 		{[]interface{}{1.0, "1.000"}, nil},
 		{[]interface{}{0, 0}, nil},
 		{[]interface{}{0, 1.0}, 0},
+		{[]interface{}{-1, nil}, -1},
+		{[]interface{}{nil, nil}, nil},
+		{[]interface{}{nil, -1}, nil},
 	}
 
 	for i, kase := range cases {
