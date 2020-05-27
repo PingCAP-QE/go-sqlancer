@@ -33,7 +33,7 @@ var (
 		}
 		e.SetValue(util.Compare(a, b) == 0)
 		return e, nil
-	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.NullEQ))
+	}, comparisionValidator, defaultBinaryOpGenNode(opcode.NullEQ))
 
 	// Tests whether a value is NULL.
 	IsNull = types.NewOp(opcode.IsNull, 1, 1, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
@@ -45,7 +45,7 @@ var (
 		return e, nil
 	}, func(u ...uint64) (uint64, bool, error) {
 		return u[0], false, nil
-	}, func(cb types.GenNodeCb, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
+	}, func(cb types.TypedExprNodeGen, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
 		op := this.(*types.BaseOpFunc)
 		argList, err := op.GetArgTable().Filter([]*uint64{nil}, &ret)
 		if err != nil {
@@ -106,7 +106,7 @@ var (
 			}
 		}
 		return types.TypeIntArg | types.TypeFloatArg, false, nil
-	}, func(cb types.GenNodeCb, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
+	}, func(cb types.TypedExprNodeGen, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
 		op := this.(*types.BaseOpFunc)
 		argList, err := op.GetArgTable().Filter([]*uint64{nil}, &ret)
 		if err != nil {
@@ -139,5 +139,68 @@ var (
 			List: list,
 		}
 		return node, value, nil
+	})
+
+	// expr BETWEEN min AND max
+	// refs: https://dev.mysql.com/doc/refman/8.0/en/comparison-operators.html#operator_between
+	Between = types.NewFn("BETWEEN", 3, 3, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 3 {
+			panic("error param numbers")
+		}
+		expr, min, max := v[0], v[1], v[2]
+		e := parser_driver.ValueExpr{}
+		if expr.Kind() == tidb_types.KindNull || min.Kind() == tidb_types.KindNull || max.Kind() == tidb_types.KindNull {
+			e.SetNull()
+			return e, nil
+		}
+		// This is equivalent to the expression (min <= expr AND expr <= max) if all the arguments are of the same type
+		if util.Compare(min, expr) <= 0 && util.Compare(expr, min) <= 0 {
+			e.SetValue(1)
+			return e, nil
+		}
+		e.SetValue(0)
+		return e, nil
+	}, func(argTyps ...uint64) (uint64, bool, error) {
+		// for the sake of simplicity, we require expr, min and max are same type
+		exprType := argTyps[0]
+		for i := 1; i < len(argTyps); i++ {
+			if exprType != argTyps[i] {
+				return 0, false, errors.New("invalid type")
+			}
+		}
+		return types.TypeIntArg | types.TypeFloatArg, false, nil
+	}, func(genExpr types.TypedExprNodeGen, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
+		op := this.(*types.BaseOpFunc)
+		argList, err := op.GetArgTable().Filter([]*uint64{nil}, &ret)
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		if len(argList) == 0 {
+			return nil, parser_driver.ValueExpr{}, errors.New(fmt.Sprintf("cannot find valid param for type(%d) returned", ret))
+		}
+		arg := argList[rand.Intn(len(argList))]
+		expr, exprValue, err := genExpr(arg[0])
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		min, minValue, err := genExpr(arg[1])
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		max, maxValue, err := genExpr(arg[2])
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		node := &ast.BetweenExpr{
+			Expr:  expr,
+			Left:  min,
+			Right: max,
+			Not:   false,
+		}
+		result, err := op.Eval(exprValue, minValue, maxValue)
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		return node, result, nil
 	})
 )

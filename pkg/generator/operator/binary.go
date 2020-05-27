@@ -18,48 +18,50 @@ import (
 )
 
 var (
-	BinaryOps types.OpFuncMap = make(types.OpFuncMap)
+	BinaryOps = make(types.OpFuncMap)
 
-	defaultBinaryOpValidate types.ValidateCb = func(args ...uint64) (uint64, bool, error) {
+	// comparisionValidator stands for a comparision function that results a int value
+	comparisionValidator = func(args ...uint64) (uint64, bool, error) {
 		if len(args) != 2 {
 			panic("require two params")
 		}
 		a, b := args[0], args[1]
+		resultType := types.TypeIntArg | types.TypeFloatArg
 		// because binary ops almost reflexive, we can just swap a and b then judge again
 		for i := 0; i < 2; i++ {
 			switch a {
 			case types.TypeIntArg, types.TypeFloatArg:
 				if b&^types.TypeNonFormattedStringArg == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, true, nil
+					return resultType, true, nil
 				}
 				if b&^(types.TypeNumberLikeArg|types.TypeDatetimeLikeStringArg) == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, false, nil
+					return resultType, false, nil
 				}
 			case types.TypeNonFormattedStringArg:
 				if b&^types.TypeStringArg == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, false, nil
+					return resultType, false, nil
 				}
 				if b&^types.TypeDatetimeArg == 0 {
 					// return ERROR 1525
 					return 0, false, errors.New("invalid type")
 				}
 				if b&^types.TypeNumberLikeStringArg == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, false, nil
+					return resultType, false, nil
 				}
 			case types.TypeNumberLikeStringArg:
 				if b&^(types.TypeNumberLikeStringArg|types.TypeDatetimeLikeStringArg) == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, false, nil
+					return resultType, false, nil
 				}
 				if b&^types.TypeDatetimeArg == 0 {
 					return 0, false, errors.New("invalid type")
 				}
 			case types.TypeDatetimeArg:
 				if b&^types.TypeDatatimeLikeArg == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, false, nil
+					return resultType, false, nil
 				}
 			case types.TypeDatetimeLikeStringArg:
 				if b&^types.TypeDatetimeLikeStringArg == 0 {
-					return types.TypeIntArg | types.TypeFloatArg, false, nil
+					return resultType, false, nil
 				}
 			}
 			a, b = b, a
@@ -68,8 +70,8 @@ var (
 		panic("unreachable")
 	}
 
-	defaultBinaryOpGenNode func(opcode.Op) types.FnGenNodeCb = func(opCode opcode.Op) types.FnGenNodeCb {
-		return func(cb types.GenNodeCb, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
+	defaultBinaryOpGenNode = func(opCode opcode.Op) types.TypedExprNodeGenSel {
+		return func(cb types.TypedExprNodeGen, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
 			// generate op node and call cb to generate its child node
 			valLeft := parser_driver.ValueExpr{}
 			valRight := parser_driver.ValueExpr{}
@@ -120,7 +122,7 @@ var (
 		}
 		e.SetValue(util.Compare(a, b) > 0)
 		return e, nil
-	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.GT))
+	}, comparisionValidator, defaultBinaryOpGenNode(opcode.GT))
 
 	Lt = types.NewOp(opcode.LT, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -134,7 +136,7 @@ var (
 		}
 		e.SetValue(util.Compare(a, b) < 0)
 		return e, nil
-	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.LT))
+	}, comparisionValidator, defaultBinaryOpGenNode(opcode.LT))
 
 	Ne = types.NewOp(opcode.NE, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -148,7 +150,7 @@ var (
 		}
 		e.SetValue(util.Compare(a, b) != 0)
 		return e, nil
-	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.NE))
+	}, comparisionValidator, defaultBinaryOpGenNode(opcode.NE))
 
 	Eq = types.NewOp(opcode.EQ, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -162,7 +164,7 @@ var (
 		}
 		e.SetValue(util.Compare(a, b) == 0)
 		return e, nil
-	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.EQ))
+	}, comparisionValidator, defaultBinaryOpGenNode(opcode.EQ))
 
 	Ge = types.NewOp(opcode.GE, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -176,7 +178,7 @@ var (
 		}
 		e.SetValue(util.Compare(a, b) >= 0)
 		return e, nil
-	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.GE))
+	}, comparisionValidator, defaultBinaryOpGenNode(opcode.GE))
 
 	Le = types.NewOp(opcode.LE, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -190,7 +192,7 @@ var (
 		}
 		e.SetValue(util.Compare(a, b) <= 0)
 		return e, nil
-	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.LE))
+	}, comparisionValidator, defaultBinaryOpGenNode(opcode.LE))
 
 	LogicXor = types.NewOp(opcode.LogicXor, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -204,7 +206,7 @@ var (
 		}
 		e.SetValue(util.ConvertToBoolOrNull(a) != util.ConvertToBoolOrNull(b))
 		return e, nil
-	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.LogicXor))
+	}, comparisionValidator, defaultBinaryOpGenNode(opcode.LogicXor))
 
 	LogicAnd = types.NewOp(opcode.LogicAnd, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -224,7 +226,7 @@ var (
 		}
 		e.SetValue(true)
 		return e, nil
-	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.LogicAnd))
+	}, comparisionValidator, defaultBinaryOpGenNode(opcode.LogicAnd))
 
 	LogicOr = types.NewOp(opcode.LogicOr, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -244,7 +246,7 @@ var (
 		}
 		e.SetValue(false)
 		return e, nil
-	}, defaultBinaryOpValidate, defaultBinaryOpGenNode(opcode.LogicOr))
+	}, comparisionValidator, defaultBinaryOpGenNode(opcode.LogicOr))
 )
 
 func init() {

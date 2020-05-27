@@ -11,8 +11,8 @@ import (
 )
 
 type Evaluable = func(...parser_driver.ValueExpr) (parser_driver.ValueExpr, error)
-type GenNodeCb = func(uint64) (ast.ExprNode, parser_driver.ValueExpr, error)
-type FnGenNodeCb = func(GenNodeCb, OpFuncEval, uint64) (ast.ExprNode, parser_driver.ValueExpr, error)
+type TypedExprNodeGen = func(uint64) (ast.ExprNode, parser_driver.ValueExpr, error)
+type TypedExprNodeGenSel = func(TypedExprNodeGen, OpFuncEval, uint64) (ast.ExprNode, parser_driver.ValueExpr, error)
 
 /* return 0, nil for error typed inputs; 0, error for other error (e.g. arg amount)
 non-zero, nil for legal input; non-zero, error("warning") for warning
@@ -35,7 +35,7 @@ type OpFuncEval interface {
 	// IsValidParam(...uint64) (uint64, error)
 	Eval(...parser_driver.ValueExpr) (parser_driver.ValueExpr, error)
 	// for generate node
-	Node(GenNodeCb, uint64) (ast.ExprNode, parser_driver.ValueExpr, error)
+	Node(TypedExprNodeGen, uint64) (ast.ExprNode, parser_driver.ValueExpr, error)
 }
 
 // return type as key; f => str|int : [TypeStr]:['f':f], [TypeInt]:['f':f]
@@ -78,7 +78,7 @@ type BaseOpFunc struct {
 	maxArgs       int
 	name          string
 	evalFn        Evaluable
-	nodeFn        FnGenNodeCb
+	nodeFn        TypedExprNodeGenSel
 	validateParam ValidateCb
 	argTable      ArgTable
 }
@@ -115,11 +115,11 @@ func (o *BaseOpFunc) Eval(vals ...parser_driver.ValueExpr) (parser_driver.ValueE
 	return o.evalFn(vals...)
 }
 
-func (o *BaseOpFunc) SetNodeFn(fn FnGenNodeCb) {
+func (o *BaseOpFunc) SetNodeFn(fn TypedExprNodeGenSel) {
 	o.nodeFn = fn
 }
 
-func (o *BaseOpFunc) Node(fn GenNodeCb, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
+func (o *BaseOpFunc) Node(fn TypedExprNodeGen, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
 	// ? we can make o as a param
 	// ? so that we can downcast o to Op/Fn/CastFn to call their owned methods
 	return o.nodeFn(fn, o, ret)
@@ -204,7 +204,7 @@ func (o *Op) SetOpcode(code opcode.Op) {
 	o.name = opcode.Ops[code]
 }
 
-func NewOp(code opcode.Op, min, max int, fn Evaluable, vp ValidateCb, gn FnGenNodeCb) *Op {
+func NewOp(code opcode.Op, min, max int, fn Evaluable, vp ValidateCb, gn TypedExprNodeGenSel) *Op {
 	var o Op
 	o.SetOpcode(code)
 	o.SetMinArgs(min)
@@ -221,7 +221,7 @@ type Fn struct {
 	BaseOpFunc
 }
 
-func NewFn(name string, min, max int, fn Evaluable, vp ValidateCb, gn FnGenNodeCb) *Fn {
+func NewFn(name string, min, max int, fn Evaluable, vp ValidateCb, gn TypedExprNodeGenSel) *Fn {
 	var f Fn
 	f.SetName(name)
 	f.SetMaxArgs(max)
@@ -258,7 +258,7 @@ func (c *CastFn) SetToTp(tp int) {
 }
 
 // different behavior from other functions
-func NewCastFn(castTp int, fn Evaluable, vp ValidateCb, gn FnGenNodeCb) *CastFn {
+func NewCastFn(castTp int, fn Evaluable, vp ValidateCb, gn TypedExprNodeGenSel) *CastFn {
 	var f CastFn
 	// TODO: caseFnTp to readable name
 	f.SetName(fmt.Sprintf("%d", castTp))

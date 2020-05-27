@@ -92,6 +92,7 @@ func ConvertToBoolOrNull(a parser_driver.ValueExpr) int8 {
 	}
 }
 
+// TODO(mahjonp) because of CompareDatum can tell us whether there exists an truncate, we can use it in `comparisionValidator`
 func Compare(a, b parser_driver.ValueExpr) int {
 	res, _ := a.CompareDatum(&stmtctx.StatementContext{AllowInvalidDate: true, IgnoreTruncate: true}, &b.Datum)
 	return res

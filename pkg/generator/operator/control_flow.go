@@ -49,7 +49,7 @@ var (
 			}
 		}
 		return valueTp, false, nil
-	}, func(cb types.GenNodeCb, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
+	}, func(cb types.TypedExprNodeGen, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
 		op := this.(*types.BaseOpFunc)
 		argList, err := op.GetArgTable().Filter([]*uint64{nil}, &ret)
 		if err != nil {

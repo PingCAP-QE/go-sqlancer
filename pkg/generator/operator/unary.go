@@ -46,7 +46,7 @@ var (
 			return types.TypeIntArg | types.TypeFloatArg, true, nil
 		}
 		panic("unreachable")
-	}, func(cb types.GenNodeCb, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
+	}, func(cb types.TypedExprNodeGen, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
 		// generate op node and call cb to generate its child node
 		val := parser_driver.ValueExpr{}
 		op, ok := this.(*types.BaseOpFunc)
