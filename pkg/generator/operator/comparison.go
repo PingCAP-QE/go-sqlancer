@@ -2,6 +2,7 @@ package operator
 
 import (
 	"fmt"
+	"github.com/pingcap/parser/model"
 	"math/rand"
 
 	"github.com/juju/errors"
@@ -198,6 +199,77 @@ var (
 			Not:   false,
 		}
 		result, err := op.Eval(exprValue, minValue, maxValue)
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		return node, result, nil
+	})
+
+	// STRCMP(expr1,expr2)
+	// STRCMP() returns 0 if the strings are the same, -1 if the first argument is smaller than the second according to the current sort order, and 1 otherwise.
+	StrCmp = types.NewFn("STRCMP", 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
+		if len(v) != 2 {
+			panic("error param numbers")
+		}
+		expr1, expr2 := v[0], v[1]
+		e := parser_driver.ValueExpr{}
+		if expr1.Kind() == tidb_types.KindNull || expr2.Kind() == tidb_types.KindNull {
+			e.SetNull()
+			return e, nil
+		}
+		exprs := []parser_driver.ValueExpr{expr1, expr2}
+		for i, expr := range exprs {
+			var strValue string
+			switch expr.Kind() {
+			case tidb_types.KindInt64:
+				strValue = fmt.Sprintf("%d", expr.GetInt64())
+				v[i] = parser_driver.ValueExpr{}
+				v[i].SetString(strValue, "")
+			case tidb_types.KindUint64:
+				strValue = fmt.Sprintf("%d", expr.GetUint64())
+				v[i] = parser_driver.ValueExpr{}
+				v[i].SetString(strValue, "")
+			case tidb_types.KindString:
+			default:
+				panic("unreachable!")
+			}
+		}
+		e.SetValue(util.Compare(exprs[0], exprs[1]))
+		return e, nil
+	}, func(argTyps ...uint64) (uint64, bool, error) {
+		// for the sake of simplicity, we require expr, min and max are same type
+		expr1Type, expr2Type := argTyps[0], argTyps[1]
+		// we only allow string or integer, ignore float and other types
+		if expr1Type&^(types.TypeStringArg|types.TypeIntArg) != 0 {
+			return 0, false, errors.New("invalid type")
+		}
+		if expr2Type&^(types.TypeStringArg|types.TypeIntArg) != 0 {
+			return 0, false, errors.New("invalid type")
+		}
+		return types.TypeIntArg | types.TypeFloatArg, false, nil
+	}, func(genExpr types.TypedExprNodeGen, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
+		op := this.(*types.BaseOpFunc)
+		argList, err := op.GetArgTable().Filter([]*uint64{nil}, &ret)
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		if len(argList) == 0 {
+			return nil, parser_driver.ValueExpr{}, errors.New(fmt.Sprintf("cannot find valid param for type(%d) returned", ret))
+		}
+		arg := argList[rand.Intn(len(argList))]
+		expr1, expr1Value, err := genExpr(arg[0])
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		expr2, expr2Value, err := genExpr(arg[1])
+		if err != nil {
+			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
+		}
+		node := &ast.FuncCallExpr{
+			FnName: model.NewCIStr(op.GetName()),
+			Args:   []ast.ExprNode{expr1, expr2},
+		}
+		result, err := op.Eval(expr1Value, expr2Value)
 		if err != nil {
 			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
 		}
