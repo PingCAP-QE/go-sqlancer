@@ -18,7 +18,7 @@ import (
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 )
 
-var OpFuncGroupByRet types.OpFuncIndex = make(types.OpFuncIndex)
+var OpFuncGroupByRet = make(types.OpFuncIndex)
 
 func RegisterToOpFnIndex(o types.OpFuncEval) {
 	returnType := o.GetPossibleReturnType()
@@ -157,15 +157,4 @@ func TransToMysqlType(i uint64) byte {
 	default:
 		panic(fmt.Sprintf("no implement this type: %d", i))
 	}
-}
-
-// CompareValue is only used in test cases
-func CompareValue(a, b parser_driver.ValueExpr) bool {
-	if a.Type.Tp != b.Type.Tp {
-		return false
-	}
-	if a.Datum.GetValue() != b.Datum.GetValue() {
-		return false
-	}
-	return true
 }

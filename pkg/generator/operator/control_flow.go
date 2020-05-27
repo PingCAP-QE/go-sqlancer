@@ -16,7 +16,7 @@ import (
 // https://dev.mysql.com/doc/refman/8.0/en/control-flow-functions.html#operator_case
 var (
 	// we limit case only two branches and no else branch here, so the min arg count is 2 and the max is 4
-	// CASE WHEN [compare_value] THEN result [WHEN [compare_value] THEN result ...] END
+	// CASE WHEN [compare_value] THEN expect [WHEN [compare_value] THEN expect ...] END
 	Case = types.NewFn("CASE", 2, 4, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 && len(v) != 4 {
 			panic("error params number")
@@ -26,9 +26,12 @@ var (
 		for compareValueIdx := 0; compareValueIdx < len(v); compareValueIdx += 2 {
 			compareValue := v[compareValueIdx]
 			resultValue := v[compareValueIdx+1]
-			t := parser_driver.ValueExpr{}
-			t.SetValue(1)
-			if util.Compare(t, compareValue) == 0 {
+			if compareValue.Kind() == tidb_types.KindNull {
+				continue
+			}
+			zero := parser_driver.ValueExpr{}
+			zero.SetValue(false)
+			if util.Compare(zero, compareValue) != 0 {
 				return resultValue, nil
 			}
 		}
@@ -96,9 +99,9 @@ var (
 			panic("error params number")
 		}
 		expr1 := v[0]
-		t := parser_driver.ValueExpr{}
-		t.SetValue(true)
-		if expr1.Kind() != tidb_types.KindNull && util.Compare(expr1, t) == 0 {
+		zero := parser_driver.ValueExpr{}
+		zero.SetValue(false)
+		if expr1.Kind() != tidb_types.KindNull && util.Compare(expr1, zero) != 0 {
 			return v[1], nil
 		}
 		return v[2], nil

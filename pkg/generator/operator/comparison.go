@@ -155,7 +155,7 @@ var (
 			return e, nil
 		}
 		// This is equivalent to the expression (min <= expr AND expr <= max) if all the arguments are of the same type
-		if util.Compare(min, expr) <= 0 && util.Compare(expr, min) <= 0 {
+		if util.Compare(min, expr) <= 0 && util.Compare(expr, max) <= 0 {
 			e.SetValue(1)
 			return e, nil
 		}
