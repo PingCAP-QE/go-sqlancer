@@ -19,6 +19,7 @@ const (
 	nmDebug     = "debug"
 	nmHint      = "hint"
 	nmExprIdx   = "expr-index"
+	nmNoREC     = "norec"
 )
 
 var (
@@ -31,6 +32,7 @@ var (
 	debug     = flag.Bool(nmDebug, false, "enable debug output")
 	hint      = flag.Bool(nmHint, false, "enable sql hint for TiDB")
 	exprIdx   = flag.Bool(nmExprIdx, false, "enable create expression index")
+	noREC     = flag.Bool(nmNoREC, false, "enable use NoRec method")
 )
 
 func main() {
@@ -82,5 +84,8 @@ func loadConfig() {
 	}
 	if actualFlags[nmExprIdx] {
 		conf.ExprIndex = *exprIdx
+	}
+	if actualFlags[nmNoREC] {
+		conf.NoREC = *noREC
 	}
 }

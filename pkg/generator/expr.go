@@ -130,7 +130,7 @@ func (g *Generator) columnExpr(genCtx *GenCtx, argTp uint64) (*ast.ColumnNameExp
 
 	// no pivot rows
 	// so value is generate by random
-	if genCtx.IsInUpdateDeleteStmt {
+	if genCtx.IsInUpdateDeleteStmt || genCtx.IgnorePivotRow {
 		tp := TransStringType(typeStr)
 		_, val = g.constValueExpr(tp)
 		return col, val, nil

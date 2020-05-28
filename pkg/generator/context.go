@@ -15,6 +15,7 @@ type GenConfig struct {
 	IsInExprIndex        bool
 	EnableLeftRightJoin  bool
 	IsInUpdateDeleteStmt bool
+	IgnorePivotRow       bool
 }
 
 type GenCtx struct {
@@ -46,6 +47,7 @@ func NewGenCtx(usedTables []types.Table, pivotRows map[string]*connection.QueryI
 			IsInExprIndex:        false,
 			EnableLeftRightJoin:  true,
 			IsInUpdateDeleteStmt: false,
+			IgnorePivotRow:       false,
 		},
 	}
 }

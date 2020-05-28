@@ -109,6 +109,23 @@ func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueE
 }
 
 func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx) ([]types.Column, map[string]*connection.QueryItem) {
+	if genCtx.IgnorePivotRow {
+		exprNode := &parser_driver.ValueExpr{}
+		tp := tidb_types.NewFieldType(8)
+		tp.Flag = 128
+		exprNode.TexprNode.SetType(tp)
+		exprNode.Datum.SetInt64(1)
+		countField := ast.SelectField{
+			Expr: &ast.AggregateFuncExpr{
+				F: "count",
+				Args: []ast.ExprNode{
+					exprNode,
+				},
+			},
+		}
+		node.Fields.Fields = append(node.Fields.Fields, &countField)
+		return nil, nil
+	}
 	columns := make([]types.Column, 0)
 	rows := make(map[string]*connection.QueryItem)
 	for _, table := range genCtx.ResultTables {

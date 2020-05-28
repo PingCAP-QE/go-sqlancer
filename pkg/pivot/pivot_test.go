@@ -45,3 +45,22 @@ func TestUpdateStmt(t *testing.T) {
 	fmt.Println(s)
 	assert.NoError(t, err)
 }
+
+func TestNoRecNormal(t *testing.T) {
+	p, _ := NewPivot(NewConfig())
+	p.Tables = []types.Table{*helperMakeTable(), *helperMakeTable()}
+	s, sql, err := p.GenNoRecNormalSelectStmt(p.Tables)
+	fmt.Println(s, sql)
+	assert.NoError(t, err)
+}
+
+func TestNoRecNoOpt(t *testing.T) {
+	p, _ := NewPivot(NewConfig())
+	p.Tables = []types.Table{*helperMakeTable(), *helperMakeTable()}
+	s, sql1, err := p.GenNoRecNormalSelectStmt(p.Tables)
+	fmt.Println(s, sql1)
+	assert.NoError(t, err)
+	s2, sql2, err := p.GenNoRecSelectStmtNoOpt(p.Tables, s)
+	fmt.Println(s2, sql2)
+	assert.NoError(t, err)
+}
