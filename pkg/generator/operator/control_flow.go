@@ -133,12 +133,10 @@ var (
 		}
 		return expr2, nil
 	}, func(argTyps ...uint64) (uint64, bool, error) {
-		expr1Tp := argTyps[0]
-		expr2Tp := argTyps[1]
-		if expr1Tp != expr2Tp {
+		if argTyps[0] != argTyps[1]{
 			return 0, false, errors.New("invalid type")
 		}
-		return expr1Tp, false, nil
+		return argTyps[0], false, nil
 	}, defaultFuncCallNodeCb)
 
 	// NULLIF(expr1,expr2)

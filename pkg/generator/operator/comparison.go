@@ -109,14 +109,10 @@ var (
 		return types.TypeIntArg | types.TypeFloatArg, false, nil
 	}, func(cb types.TypedExprNodeGen, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
 		op := this.(*types.BaseOpFunc)
-		argList, err := op.GetArgTable().Filter([]*uint64{nil}, &ret)
+		arg, err := op.GetArgTable().RandByFilter([]*uint64{nil}, &ret)
 		if err != nil {
 			return nil, parser_driver.ValueExpr{}, errors.Trace(err)
 		}
-		if len(argList) < 3 {
-			return nil, parser_driver.ValueExpr{}, errors.New(fmt.Sprintf("cannot find valid param for type(%d) returned", ret))
-		}
-		arg := argList[rand.Intn(len(argList))]
 		expr, value, err := cb(arg[0])
 		if err != nil {
 			return nil, parser_driver.ValueExpr{}, errors.Trace(err)

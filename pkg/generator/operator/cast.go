@@ -35,7 +35,7 @@ var (
 		return e, nil
 	}, func(args ...uint64) (retType uint64, warnings bool, err error) {
 		if len(args) != 1 {
-			panic("require two params")
+			panic("require one param")
 		}
 		// we only accept int, float, string for the sake of simplicity
 		switch args[0] {

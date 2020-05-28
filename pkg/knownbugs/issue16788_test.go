@@ -21,7 +21,7 @@ func parse(t *testing.T, sql string) ast.Node {
 }
 
 func TestCase1(t *testing.T) {
-	s := parse(t, "SELECT * FROM t0 where 2 between 1 and 3")
+	s := parse(t, "SELECT * FROM t0 WHERE ('a' != t0.c0) AND t2.c")
 	sl := s.(*ast.SelectStmt)
 	sl.Where.(*ast.BinaryOperationExpr).L.(*ast.ParenthesesExpr).Expr.(*ast.BinaryOperationExpr).R.SetType(tidb_types.NewFieldType(mysql.TypeInt24))
 	sl.Where.(*ast.BinaryOperationExpr).R.SetType(tidb_types.NewFieldType(mysql.TypeInt24))
