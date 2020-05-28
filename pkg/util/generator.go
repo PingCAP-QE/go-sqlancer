@@ -18,7 +18,7 @@ import (
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 )
 
-var OpFuncGroupByRet types.OpFuncIndex = make(types.OpFuncIndex)
+var OpFuncGroupByRet = make(types.OpFuncIndex)
 
 func RegisterToOpFnIndex(o types.OpFuncEval) {
 	returnType := o.GetPossibleReturnType()
@@ -92,10 +92,9 @@ func ConvertToBoolOrNull(a parser_driver.ValueExpr) int8 {
 	}
 }
 
-func Compare(a, b parser_driver.ValueExpr) int {
+// TODO(mahjonp) because of CompareDatum can tell us whether there exists an truncate, we can use it in `comparisionValidator`
+func CompareValueExpr(a, b parser_driver.ValueExpr) int {
 	res, _ := a.CompareDatum(&stmtctx.StatementContext{AllowInvalidDate: true, IgnoreTruncate: true}, &b.Datum)
-	// NOTE: err is warning, not really error
-	//fmt.Printf("@@compare a: %v t(a): %d b: %v r: %d err: %v\n", a.GetValue(), a.GetType().Tp, b.GetValue(), res, err)
 	return res
 }
 
@@ -158,14 +157,4 @@ func TransToMysqlType(i uint64) byte {
 	default:
 		panic(fmt.Sprintf("no implement this type: %d", i))
 	}
-}
-
-func CompareValue(a, b parser_driver.ValueExpr) bool {
-	if a.Type.Tp != b.Type.Tp {
-		return false
-	}
-	if a.Datum.GetValue() != b.Datum.GetValue() {
-		return false
-	}
-	return true
 }

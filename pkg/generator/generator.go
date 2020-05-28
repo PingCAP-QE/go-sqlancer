@@ -3,20 +3,20 @@ package generator
 import (
 	"strings"
 
-	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
-	"github.com/chaos-mesh/go-sqlancer/pkg/generator/hint"
-	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 	"github.com/juju/errors"
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/opcode"
-	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
-
 	"go.uber.org/zap"
+
+	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
+	"github.com/chaos-mesh/go-sqlancer/pkg/generator/hint"
+	"github.com/chaos-mesh/go-sqlancer/pkg/types"
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
 type Generator struct {
@@ -92,9 +92,8 @@ func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueE
 	default:
 		// make it true
 		zero := parser_driver.ValueExpr{}
-		zero.SetInt64(0)
-		res, _ := val.CompareDatum(&stmtctx.StatementContext{AllowInvalidDate: true, IgnoreTruncate: true}, &zero.Datum)
-		if res == 0 {
+		zero.SetValue(false)
+		if util.CompareValueExpr(val, zero) == 0 {
 			node = &ast.UnaryOperationExpr{
 				Op: opcode.Not,
 				// V:  &pthese,
