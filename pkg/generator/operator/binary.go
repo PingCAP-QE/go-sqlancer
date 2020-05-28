@@ -20,8 +20,8 @@ import (
 var (
 	BinaryOps = make(types.OpFuncMap)
 
-	// comparisionValidator stands for a comparision function that results a int value
-	comparisionValidator = func(args ...uint64) (uint64, bool, error) {
+	// comparisionRetTypeGen stands for a comparision function that results a int value
+	comparisionRetTypeGen = func(args ...uint64) (uint64, bool, error) {
 		if len(args) != 2 {
 			panic("require two params")
 		}
@@ -70,7 +70,7 @@ var (
 		panic("unreachable")
 	}
 
-	defaultBinaryOpGenNode = func(opCode opcode.Op) types.TypedExprNodeGenSel {
+	defaultBinaryOpExprGen = func(opCode opcode.Op) types.TypedExprNodeGenSel {
 		return func(cb types.TypedExprNodeGen, this types.OpFuncEval, ret uint64) (ast.ExprNode, parser_driver.ValueExpr, error) {
 			// generate op node and call cb to generate its child node
 			valLeft := parser_driver.ValueExpr{}
@@ -120,9 +120,9 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(util.Compare(a, b) > 0)
+		e.SetValue(util.CompareValueExpr(a, b) > 0)
 		return e, nil
-	}, comparisionValidator, defaultBinaryOpGenNode(opcode.GT))
+	}, comparisionRetTypeGen, defaultBinaryOpExprGen(opcode.GT))
 
 	Lt = types.NewOp(opcode.LT, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -134,9 +134,9 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(util.Compare(a, b) < 0)
+		e.SetValue(util.CompareValueExpr(a, b) < 0)
 		return e, nil
-	}, comparisionValidator, defaultBinaryOpGenNode(opcode.LT))
+	}, comparisionRetTypeGen, defaultBinaryOpExprGen(opcode.LT))
 
 	Ne = types.NewOp(opcode.NE, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -148,9 +148,9 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(util.Compare(a, b) != 0)
+		e.SetValue(util.CompareValueExpr(a, b) != 0)
 		return e, nil
-	}, comparisionValidator, defaultBinaryOpGenNode(opcode.NE))
+	}, comparisionRetTypeGen, defaultBinaryOpExprGen(opcode.NE))
 
 	Eq = types.NewOp(opcode.EQ, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -162,9 +162,9 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(util.Compare(a, b) == 0)
+		e.SetValue(util.CompareValueExpr(a, b) == 0)
 		return e, nil
-	}, comparisionValidator, defaultBinaryOpGenNode(opcode.EQ))
+	}, comparisionRetTypeGen, defaultBinaryOpExprGen(opcode.EQ))
 
 	Ge = types.NewOp(opcode.GE, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -176,9 +176,9 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(util.Compare(a, b) >= 0)
+		e.SetValue(util.CompareValueExpr(a, b) >= 0)
 		return e, nil
-	}, comparisionValidator, defaultBinaryOpGenNode(opcode.GE))
+	}, comparisionRetTypeGen, defaultBinaryOpExprGen(opcode.GE))
 
 	Le = types.NewOp(opcode.LE, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -190,9 +190,9 @@ var (
 			e.SetNull()
 			return e, nil
 		}
-		e.SetValue(util.Compare(a, b) <= 0)
+		e.SetValue(util.CompareValueExpr(a, b) <= 0)
 		return e, nil
-	}, comparisionValidator, defaultBinaryOpGenNode(opcode.LE))
+	}, comparisionRetTypeGen, defaultBinaryOpExprGen(opcode.LE))
 
 	LogicXor = types.NewOp(opcode.LogicXor, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -206,7 +206,7 @@ var (
 		}
 		e.SetValue(util.ConvertToBoolOrNull(a) != util.ConvertToBoolOrNull(b))
 		return e, nil
-	}, comparisionValidator, defaultBinaryOpGenNode(opcode.LogicXor))
+	}, comparisionRetTypeGen, defaultBinaryOpExprGen(opcode.LogicXor))
 
 	LogicAnd = types.NewOp(opcode.LogicAnd, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -226,7 +226,7 @@ var (
 		}
 		e.SetValue(true)
 		return e, nil
-	}, comparisionValidator, defaultBinaryOpGenNode(opcode.LogicAnd))
+	}, comparisionRetTypeGen, defaultBinaryOpExprGen(opcode.LogicAnd))
 
 	LogicOr = types.NewOp(opcode.LogicOr, 2, 2, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
 		if len(v) != 2 {
@@ -246,7 +246,7 @@ var (
 		}
 		e.SetValue(false)
 		return e, nil
-	}, comparisionValidator, defaultBinaryOpGenNode(opcode.LogicOr))
+	}, comparisionRetTypeGen, defaultBinaryOpExprGen(opcode.LogicOr))
 )
 
 func init() {

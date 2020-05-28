@@ -18,17 +18,17 @@ const (
 	TypeIntArg                uint64 = 1 << iota
 	TypeFloatArg              uint64 = 1 << iota
 	TypeDatetimeArg           uint64 = 1 << iota
-	TypeDatetimeLikeArg       uint64 = TypeDatetimeArg | TypeDatetimeLikeStringArg
-	TypeStringArg             uint64 = TypeNonFormattedStringArg | TypeDatetimeLikeArg | TypeNumberLikeStringArg
-	TypeNumberArg             uint64 = TypeIntArg | TypeFloatArg
-	TypeNumberLikeArg         uint64 = TypeNumberArg | TypeNumberLikeStringArg
+	TypeDatetimeLikeArg              = TypeDatetimeArg | TypeDatetimeLikeStringArg
+	TypeStringArg                    = TypeNonFormattedStringArg | TypeDatetimeLikeStringArg | TypeNumberLikeStringArg
+	TypeNumberArg                    = TypeIntArg | TypeFloatArg
+	TypeNumberLikeArg                = TypeNumberArg | TypeNumberLikeStringArg
 	// Array, Enum, Blob to be completed
 
 	AnyArg uint64 = math.MaxUint64
 )
 
 var (
-	SupportArgs []uint64 = []uint64{
+	SupportArgs = []uint64{
 		TypeFloatArg,
 		TypeIntArg,
 		TypeNonFormattedStringArg,

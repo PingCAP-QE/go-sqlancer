@@ -93,7 +93,7 @@ func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueE
 		// make it true
 		zero := parser_driver.ValueExpr{}
 		zero.SetValue(false)
-		if util.Compare(val, zero) == 0 {
+		if util.CompareValueExpr(val, zero) == 0 {
 			node = &ast.UnaryOperationExpr{
 				Op: opcode.Not,
 				// V:  &pthese,

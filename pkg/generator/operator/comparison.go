@@ -32,9 +32,9 @@ var (
 			e.SetValue(0)
 			return e, nil
 		}
-		e.SetValue(util.Compare(a, b) == 0)
+		e.SetValue(util.CompareValueExpr(a, b) == 0)
 		return e, nil
-	}, comparisionValidator, defaultBinaryOpGenNode(opcode.NullEQ))
+	}, comparisionRetTypeGen, defaultBinaryOpExprGen(opcode.NullEQ))
 
 	// Tests whether a value is NULL.
 	IsNull = types.NewOp(opcode.IsNull, 1, 1, func(v ...parser_driver.ValueExpr) (parser_driver.ValueExpr, error) {
@@ -88,7 +88,7 @@ var (
 				hasNull = true
 				continue
 			}
-			if util.Compare(expr, b) == 0 {
+			if util.CompareValueExpr(expr, b) == 0 {
 				e.SetValue(1)
 				return e, nil
 			}
@@ -154,13 +154,13 @@ var (
 		if min.Kind() == tidb_types.KindNull || expr.Kind() == tidb_types.KindNull {
 			leftExpr.SetNull()
 		} else {
-			leftExpr.SetValue(util.Compare(min, expr) <= 0)
+			leftExpr.SetValue(util.CompareValueExpr(min, expr) <= 0)
 		}
 		rightExpr := parser_driver.ValueExpr{}
 		if expr.Kind() == tidb_types.KindNull || max.Kind() == tidb_types.KindNull {
 			rightExpr.SetNull()
 		} else {
-			rightExpr.SetValue(util.Compare(expr, max) <= 0)
+			rightExpr.SetValue(util.CompareValueExpr(expr, max) <= 0)
 		}
 		return LogicAnd.Eval(leftExpr, rightExpr)
 	}, func(argTyps ...uint64) (uint64, bool, error) {
@@ -240,7 +240,7 @@ var (
 				panic("unreachable!")
 			}
 		}
-		e.SetValue(util.Compare(exprs[0], exprs[1]))
+		e.SetValue(util.CompareValueExpr(exprs[0], exprs[1]))
 		return e, nil
 	}, func(argTyps ...uint64) (uint64, bool, error) {
 		// for the sake of simplicity, we require expr, min and max are same type

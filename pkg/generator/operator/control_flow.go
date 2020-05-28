@@ -31,7 +31,7 @@ var (
 			}
 			zero := parser_driver.ValueExpr{}
 			zero.SetValue(false)
-			if util.Compare(zero, compareValue) != 0 {
+			if util.CompareValueExpr(zero, compareValue) != 0 {
 				return resultValue, nil
 			}
 		}
@@ -101,7 +101,7 @@ var (
 		expr1 := v[0]
 		zero := parser_driver.ValueExpr{}
 		zero.SetValue(false)
-		if expr1.Kind() != tidb_types.KindNull && util.Compare(expr1, zero) != 0 {
+		if expr1.Kind() != tidb_types.KindNull && util.CompareValueExpr(expr1, zero) != 0 {
 			return v[1], nil
 		}
 		return v[2], nil
@@ -151,7 +151,7 @@ var (
 		expr2 := v[1]
 		e := parser_driver.ValueExpr{}
 		e.SetNull()
-		if util.Compare(expr1, expr2) == 0 {
+		if util.CompareValueExpr(expr1, expr2) == 0 {
 			return e, nil
 		}
 		return expr1, nil
