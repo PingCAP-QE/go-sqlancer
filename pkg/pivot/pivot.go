@@ -631,7 +631,7 @@ func (p *Pivot) verifyNoREC(node *ast.SelectStmt, rows [][]*connection.QueryItem
 	if rawRight == "NULL" || rawRight == "" {
 		rawRight = "0"
 	}
-	fmt.Printf("rows: %+v resultRows: %+v", rawLeft, rawRight)
+	fmt.Printf("rows: %+v resultRows: %+v\n", rawLeft, rawRight)
 	left, err := strconv.ParseUint(rawLeft, 10, 64)
 	if err != nil {
 		panic("rows transform to int64 failed： " + rows[0][0].ValString)
