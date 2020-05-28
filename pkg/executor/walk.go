@@ -11,6 +11,7 @@ import (
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/mysql"
 	parserTypes "github.com/pingcap/parser/types"
+	"github.com/pingcap/tidb/meta/autoid"
 	tidbTypes "github.com/pingcap/tidb/types"
 	driver "github.com/pingcap/tidb/types/parser_driver"
 )
@@ -33,19 +34,27 @@ var (
 		tidbTypes.FromDate(2020, 1, 1, 0, 0, 0, 0),
 	}
 
-	autoOpts = []ast.ColumnOptionType{ast.ColumnOptionAutoIncrement, ast.ColumnOptionAutoRandom}
+	autoOptTypes = []ast.ColumnOptionType{ast.ColumnOptionAutoIncrement, ast.ColumnOptionAutoRandom}
 )
+
+func randAutoOpt() *ast.ColumnOption {
+	opt := &ast.ColumnOption{Tp: autoOptTypes[util.Rd(len(autoOptTypes))]}
+	if opt.Tp == ast.ColumnOptionAutoRandom {
+		opt.AutoRandomBitLength = 1 + util.Rd(autoid.MaxAutoRandomBits)
+	}
+	return opt
+}
 
 func (e *Executor) walkDDLCreateTable(index int, node *ast.CreateTableStmt, colTypes []string) (string, string, error) {
 	table := fmt.Sprintf("%s_%s", "table", strings.Join(colTypes, "_"))
 	idColName := fmt.Sprintf("id_%d", index)
 
-	idFieldType := parserTypes.NewFieldType(Type2Tp("int"))
-	idFieldType.Flen = dataType2Len("int")
+	idFieldType := parserTypes.NewFieldType(Type2Tp("bigint"))
+	idFieldType.Flen = dataType2Len("bigint")
 	idCol := &ast.ColumnDef{
 		Name:    &ast.ColumnName{Name: model.NewCIStr(idColName)},
 		Tp:      idFieldType,
-		Options: []*ast.ColumnOption{{Tp: autoOpts[util.Rd(len(autoOpts))]}},
+		Options: []*ast.ColumnOption{randAutoOpt()},
 	}
 	node.Cols = append(node.Cols, idCol)
 	makeConstraintPrimaryKey(node, idColName)
@@ -352,6 +361,8 @@ func Type2Tp(t string) byte {
 	switch t {
 	case "int":
 		return mysql.TypeLong
+	case "bigint":
+		return mysql.TypeLonglong
 	case "varchar":
 		return mysql.TypeVarchar
 	case "timestamp":

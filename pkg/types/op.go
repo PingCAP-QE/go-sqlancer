@@ -201,7 +201,7 @@ func (o *Op) GetOpcode() opcode.Op {
 
 func (o *Op) SetOpcode(code opcode.Op) {
 	o.opcode = code
-	o.name = opcode.Ops[code]
+	o.name = code.String()
 }
 
 func NewOp(code opcode.Op, min, max int, fn Evaluable, vp ValidateCb, gn FnGenNodeCb) *Op {

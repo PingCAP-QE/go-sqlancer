@@ -96,6 +96,8 @@ func dataType2Len(t string) int {
 	switch t {
 	case "int":
 		return 16
+	case "bigint":
+		return 64
 	case "varchar":
 		return 511
 	case "timestamp":
