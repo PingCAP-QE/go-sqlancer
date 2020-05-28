@@ -26,7 +26,8 @@ var (
 		if value.IsNull() {
 			return value, nil
 		}
-		res, err := value.ToInt64(&stmtctx.StatementContext{AllowInvalidDate: true, IgnoreTruncate: true})
+		// we need set InSelectStmt to be true to disallow floatStr "0.6" round to 1 when cast signed
+		res, err := value.ToInt64(&stmtctx.StatementContext{AllowInvalidDate: true, IgnoreTruncate: true, InSelectStmt: true})
 		if err != nil {
 			return e, errors.Trace(err)
 		}

@@ -19,6 +19,7 @@ func TestCastSigned(t *testing.T) {
 		{[]interface{}{-1}, int64(-1)},
 		{[]interface{}{"-1"}, int64(-1)},
 		{[]interface{}{"-1.1"}, int64(-1)},
+		{[]interface{}{"0.652053"}, int64(0)},
 		{[]interface{}{nil}, nil},
 		{[]interface{}{"str"}, int64(0)},
 	}
