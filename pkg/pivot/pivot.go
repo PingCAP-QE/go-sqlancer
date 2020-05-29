@@ -14,6 +14,7 @@ import (
 	"github.com/juju/errors"
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/model"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
@@ -24,6 +25,9 @@ import (
 	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
+
+const NOREC_TMP_TABLE_NAME = "tmp_table"
+const NOREC_TMP_COL_NAME = "tmp_col"
 
 var (
 	allColumnTypes = []string{"int", "float", "varchar"}
@@ -249,9 +253,33 @@ func (p *Pivot) progress(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	// generate sql ast tree and
-	// generate sql where clause
-	selectAst, selectSQL, columns, updatedPivotRows, tableMap, err := p.GenSelectStmt(pivotRows, usedTables)
+	var selectAst *ast.SelectStmt
+	var selectSQL string
+	var columns []Column
+	var updatedPivotRows map[string]*connection.QueryItem
+	var tableMap *generator.GenCtx
+	isNoREC := false
+	if p.Conf.ModePQS {
+		if p.Conf.ModeNoREC {
+			// choose test approach randomly
+			isNoREC = RdBool()
+		}
+	} else {
+		if p.Conf.ModeNoREC {
+			isNoREC = true
+		} else {
+			panic("no mode has been set")
+		}
+	}
+	// norec would be restrained in view generation phase
+	if isNoREC && p.round > p.Conf.ViewCount {
+		selectAst, selectSQL, err = p.GenNoRecNormalSelectStmt(usedTables)
+	} else {
+		isNoREC = false
+		// generate sql ast tree and
+		// generate sql where clause
+		selectAst, selectSQL, columns, updatedPivotRows, tableMap, err = p.GenSelectStmt(pivotRows, usedTables)
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -280,9 +308,14 @@ func (p *Pivot) progress(ctx context.Context) {
 		log.L().Error("execSelect failed", zap.Error(err))
 		return
 	}
-	// verify pivot row in result row set
-	correct := p.verify(updatedPivotRows, columns, resultRows)
-	fmt.Printf("Batch %d, Round %d, verify result %v!\n", p.batch, p.round, correct)
+	correct := false
+	if isNoREC {
+		correct = p.verifyNoREC(selectAst, resultRows, usedTables)
+	} else {
+		// verify pivot row in result row set
+		correct = p.verify(updatedPivotRows, columns, resultRows)
+	}
+	fmt.Printf("Batch %d, Round %d, isNoRec: %v, verify result %v!\n", p.batch, p.round, isNoREC, correct)
 	if !correct {
 		// subSQL, err := p.minifySelect(selStmt, pivotRows, usedTables, columns)
 		// if err != nil {
@@ -294,7 +327,7 @@ func (p *Pivot) progress(ctx context.Context) {
 		// 		fmt.Printf("sub query:\n%s\n", subSQL)
 		// 	}
 		// }
-		if dust.IsKnownBug() {
+		if !isNoREC && dust.IsKnownBug() {
 			return
 		}
 		fmt.Printf("row:\n")
@@ -530,4 +563,95 @@ func (p *Pivot) refreshDatabase(ctx context.Context) {
 		// reload indexes created
 		p.LoadSchema(ctx)
 	}
+}
+
+func (p *Pivot) GenNoRecNormalSelectStmt(usedTables []Table) (*ast.SelectStmt, string, error) {
+	genCtx := generator.NewGenCtx(usedTables, nil)
+	genCtx.IgnorePivotRow = true
+	stmtAst, err := p.SelectStmtAst(genCtx, p.Conf.Depth)
+	if err != nil {
+		return nil, "", err
+	}
+	sql, _, _, err := p.SelectStmt(&stmtAst, genCtx)
+	if err != nil {
+		return nil, "", err
+	}
+	return &stmtAst, sql, nil
+}
+
+func (p *Pivot) GenNoRecSelectStmtNoOpt(node *ast.SelectStmt) (*ast.SelectStmt, string, error) {
+	sum := &ast.SelectField{
+		Expr: &ast.AggregateFuncExpr{
+			F: "sum",
+			Args: []ast.ExprNode{
+				&ast.ColumnNameExpr{
+					Name: &ast.ColumnName{
+						Name: model.NewCIStr(NOREC_TMP_COL_NAME),
+					},
+				},
+			},
+		},
+	}
+	node.Fields.Fields = []*ast.SelectField{
+		&ast.SelectField{
+			Expr:   node.Where,
+			AsName: model.NewCIStr(NOREC_TMP_COL_NAME),
+		},
+	}
+	node.Where = nil
+	// clear sql hint
+	node.TableHints = make([]*ast.TableOptimizerHint, 0)
+	wrapNode := &ast.SelectStmt{
+		SelectStmtOpts: &ast.SelectStmtOpts{
+			SQLCache: true,
+		},
+		Fields: &ast.FieldList{
+			Fields: []*ast.SelectField{
+				sum,
+			},
+		},
+		From: &ast.TableRefsClause{
+			TableRefs: &ast.Join{
+				Left: &ast.TableSource{
+					AsName: model.NewCIStr(NOREC_TMP_TABLE_NAME),
+					Source: node,
+				},
+			},
+		},
+	}
+	sql, err := BufferOut(wrapNode)
+	if err != nil {
+		return nil, "", err
+	}
+	return wrapNode, sql, nil
+}
+
+func (p *Pivot) verifyNoREC(node *ast.SelectStmt, rows [][]*connection.QueryItem, usedTables []Table) bool {
+	_, noOptSql, err := p.GenNoRecSelectStmtNoOpt(node)
+	if err != nil {
+		panic(fmt.Sprintf("generate no opt SQL failed err:%+v", err))
+	}
+	resultRows, err := p.execSelect(noOptSql)
+	if err != nil {
+		panic(fmt.Sprintf("no opt sql executes failed: %+v", err))
+	}
+	rawLeft := rows[0][0].ValString
+	if rawLeft == "NULL" || rawLeft == "" {
+		rawLeft = "0"
+	}
+	rawRight := resultRows[0][0].ValString
+	if rawRight == "NULL" || rawRight == "" {
+		rawRight = "0"
+	}
+	fmt.Printf("rows: %+v resultRows: %+v\n", rawLeft, rawRight)
+	left, err := strconv.ParseUint(rawLeft, 10, 64)
+	if err != nil {
+		panic("rows transform to int64 failed： " + rows[0][0].ValString)
+	}
+	right, err := strconv.ParseUint(rawRight, 10, 64)
+	if err != nil {
+		panic("resultRows transform to int64 failed： " + resultRows[0][0].ValString)
+	}
+
+	return right == left
 }

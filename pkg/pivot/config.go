@@ -23,6 +23,8 @@ type Config struct {
 	ExprIndex bool
 	// TODO implement them
 	PrepareStmt bool
+	ModeNoREC   bool
+	ModePQS     bool
 }
 
 // NewConfig create default config
@@ -36,6 +38,8 @@ func NewConfig() *Config {
 		Debug:       false,
 		ViewCount:   10,
 		ExprIndex:   false,
+		ModeNoREC:   true,
+		ModePQS:     true,
 	}
 }
 

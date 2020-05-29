@@ -8,6 +8,7 @@ import (
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
+	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/parser/opcode"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
@@ -99,6 +100,13 @@ func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueE
 				// V:  &pthese,
 				V: node,
 			}
+		} else {
+			// make it return 1 as true through add IS NOT TRUE
+			node = &ast.IsNullExpr{
+				// Expr: &pthese,
+				Expr: node,
+				Not:  true,
+			}
 		}
 	}
 	// remove useless parenthese
@@ -109,6 +117,23 @@ func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueE
 }
 
 func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx) ([]types.Column, map[string]*connection.QueryItem) {
+	if genCtx.IgnorePivotRow {
+		exprNode := &parser_driver.ValueExpr{}
+		tp := tidb_types.NewFieldType(mysql.TypeLonglong)
+		tp.Flag = 128
+		exprNode.TexprNode.SetType(tp)
+		exprNode.Datum.SetInt64(1)
+		countField := ast.SelectField{
+			Expr: &ast.AggregateFuncExpr{
+				F: "count",
+				Args: []ast.ExprNode{
+					exprNode,
+				},
+			},
+		}
+		node.Fields.Fields = append(node.Fields.Fields, &countField)
+		return nil, nil
+	}
 	columns := make([]types.Column, 0)
 	rows := make(map[string]*connection.QueryItem)
 	for _, table := range genCtx.ResultTables {
