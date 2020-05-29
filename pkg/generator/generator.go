@@ -100,6 +100,13 @@ func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueE
 				// V:  &pthese,
 				V: node,
 			}
+		} else {
+			// make it return 1 as true through add IS NOT TRUE
+			node = &ast.IsNullExpr{
+				// Expr: &pthese,
+				Expr: node,
+				Not:  true,
+			}
 		}
 	}
 	// remove useless parenthese

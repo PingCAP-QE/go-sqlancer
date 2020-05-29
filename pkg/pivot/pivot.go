@@ -259,8 +259,20 @@ func (p *Pivot) progress(ctx context.Context) {
 	var updatedPivotRows map[string]*connection.QueryItem
 	var tableMap *generator.GenCtx
 	isNoREC := false
-	if p.Conf.NoREC && p.round > p.Conf.ViewCount {
-		isNoREC = true
+	if p.Conf.ModePQS {
+		if p.Conf.ModeNoREC {
+			// choose test approach randomly
+			isNoREC = RdBool()
+		}
+	} else {
+		if p.Conf.ModeNoREC {
+			isNoREC = true
+		} else {
+			panic("no mode has been set")
+		}
+	}
+	// norec would be restrained in view generation phase
+	if isNoREC && p.round > p.Conf.ViewCount {
 		selectAst, selectSQL, err = p.GenNoRecNormalSelectStmt(usedTables)
 	} else {
 		isNoREC = false
