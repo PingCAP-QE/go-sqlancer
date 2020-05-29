@@ -8,6 +8,7 @@ import (
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
+	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/parser/opcode"
 	tidb_types "github.com/pingcap/tidb/types"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
@@ -111,7 +112,7 @@ func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueE
 func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx) ([]types.Column, map[string]*connection.QueryItem) {
 	if genCtx.IgnorePivotRow {
 		exprNode := &parser_driver.ValueExpr{}
-		tp := tidb_types.NewFieldType(8)
+		tp := tidb_types.NewFieldType(mysql.TypeLonglong)
 		tp.Flag = 128
 		exprNode.TexprNode.SetType(tp)
 		exprNode.Datum.SetInt64(1)

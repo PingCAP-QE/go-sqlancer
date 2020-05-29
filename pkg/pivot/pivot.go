@@ -259,7 +259,7 @@ func (p *Pivot) progress(ctx context.Context) {
 	var updatedPivotRows map[string]*connection.QueryItem
 	var tableMap *generator.GenCtx
 	isNoREC := false
-	if p.Conf.NoREC && RdBool() && p.round > p.Conf.ViewCount {
+	if p.Conf.NoREC && p.round > p.Conf.ViewCount {
 		isNoREC = true
 		selectAst, selectSQL, err = p.GenNoRecNormalSelectStmt(usedTables)
 	} else {
@@ -567,7 +567,7 @@ func (p *Pivot) GenNoRecNormalSelectStmt(usedTables []Table) (*ast.SelectStmt, s
 	return &stmtAst, sql, nil
 }
 
-func (p *Pivot) GenNoRecSelectStmtNoOpt(usedTables []Table, node *ast.SelectStmt) (*ast.SelectStmt, string, error) {
+func (p *Pivot) GenNoRecSelectStmtNoOpt(node *ast.SelectStmt) (*ast.SelectStmt, string, error) {
 	sum := &ast.SelectField{
 		Expr: &ast.AggregateFuncExpr{
 			F: "sum",
@@ -615,7 +615,7 @@ func (p *Pivot) GenNoRecSelectStmtNoOpt(usedTables []Table, node *ast.SelectStmt
 }
 
 func (p *Pivot) verifyNoREC(node *ast.SelectStmt, rows [][]*connection.QueryItem, usedTables []Table) bool {
-	_, noOptSql, err := p.GenNoRecSelectStmtNoOpt(usedTables, node)
+	_, noOptSql, err := p.GenNoRecSelectStmtNoOpt(node)
 	if err != nil {
 		panic(fmt.Sprintf("generate no opt SQL failed err:%+v", err))
 	}
