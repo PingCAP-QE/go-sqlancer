@@ -6,30 +6,34 @@ import (
 )
 
 type (
-	Transformer func(stmt *ast.SelectStmt) *ast.SelectStmt
+	Transformer interface {
+		Trans(stmt *ast.SelectStmt) *ast.SelectStmt
+	}
+
+	TransformFunc func(stmt *ast.SelectStmt) *ast.SelectStmt
 
 	TransCtx struct {
-		Depth int
+		Segments int
 	}
 )
 
-var (
-	transformers = []Transformer{noRECTrans, tlpTrans}
-)
-
-func randomTransformer() Transformer {
-	return transformers[util.Rd(len(transformers))]
+func (t TransformFunc) Trans(stmt *ast.SelectStmt) *ast.SelectStmt {
+	return t(stmt)
 }
 
-func Trans(stmt *ast.SelectStmt, ctx *TransCtx) ast.DMLNode {
-	if ctx.Depth == 1 {
-		return randomTransformer()(stmt)
+func Trans(transformers []Transformer, stmt *ast.SelectStmt, Segments int) ast.DMLNode {
+	var random = func() Transformer {
+		return transformers[util.Rd(len(transformers))]
 	}
 
-	stmts := make([]*ast.SelectStmt, ctx.Depth)
-	for i := 0; i < ctx.Depth; i++ {
-		transformer := randomTransformer()
-		stmts = append(stmts, transformer(stmt))
+	if Segments == 1 {
+		return random().Trans(stmt)
+	}
+
+	stmts := make([]*ast.SelectStmt, Segments)
+	for i := 0; i < Segments; i++ {
+		transformer := random()
+		stmts = append(stmts, transformer.Trans(stmt))
 	}
 	return &ast.UnionStmt{SelectList: &ast.UnionSelectList{Selects: stmts}}
 }
