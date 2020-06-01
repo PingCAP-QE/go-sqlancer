@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/pivot"
@@ -19,6 +20,7 @@ const (
 	nmDebug     = "debug"
 	nmHint      = "hint"
 	nmExprIdx   = "expr-index"
+	nmMode      = "mode"
 )
 
 var (
@@ -31,6 +33,7 @@ var (
 	debug     = flag.Bool(nmDebug, false, "enable debug output")
 	hint      = flag.Bool(nmHint, false, "enable sql hint for TiDB")
 	exprIdx   = flag.Bool(nmExprIdx, false, "enable create expression index")
+	mode      = flag.String(nmMode, "pqs|norec", "use NoRec or PQS method or both, split by vertical bar")
 )
 
 func main() {
@@ -82,5 +85,25 @@ func loadConfig() {
 	}
 	if actualFlags[nmExprIdx] {
 		conf.ExprIndex = *exprIdx
+	}
+	if actualFlags[nmMode] {
+		if len(*mode) == 0 {
+			panic("empty mode param set")
+		}
+		approaches := strings.Split(*mode, "|")
+		hasSet := false
+		for _, i := range approaches {
+			if strings.ToLower(i) == "norec" {
+				conf.ModeNoREC = true
+				hasSet = true
+			}
+			if strings.ToLower(i) == "pqs" {
+				conf.ModePQS = true
+				hasSet = true
+			}
+		}
+		if !hasSet {
+			panic("no valid mode param set")
+		}
 	}
 }
