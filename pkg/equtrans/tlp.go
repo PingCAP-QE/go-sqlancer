@@ -6,7 +6,7 @@ import (
 )
 
 type TLPTrans struct {
-	expr ast.ExprNode
+	Expr ast.ExprNode
 }
 
 func (t *TLPTrans) Trans(stmt *ast.SelectStmt) ast.ResultSetNode {
@@ -20,14 +20,21 @@ func (t *TLPTrans) Trans(stmt *ast.SelectStmt) ast.ResultSetNode {
 		selects = t.transWhere(stmt)
 	}
 
-	return &ast.UnionStmt{SelectList: &ast.UnionSelectList{
-		Selects: selects,
-	}}
+	for i, selectStmt := range selects {
+		if i != 0 {
+			selectStmt.IsAfterUnionDistinct = false
+		}
+	}
+
+	return &ast.UnionStmt{
+		SelectList: &ast.UnionSelectList{
+			Selects: selects,
+		}}
 }
 
 func (t *TLPTrans) transGroupBy(stmt *ast.SelectStmt) []*ast.SelectStmt {
 	selects := make([]*ast.SelectStmt, 3)
-	for _, expr := range partition(t.expr) {
+	for _, expr := range partition(t.Expr) {
 		selectStmt := &*stmt
 		if selectStmt.Having == nil {
 			selectStmt.Having = &ast.HavingClause{Expr: expr}
@@ -41,7 +48,7 @@ func (t *TLPTrans) transGroupBy(stmt *ast.SelectStmt) []*ast.SelectStmt {
 
 func (t *TLPTrans) transJoin(stmt *ast.SelectStmt) []*ast.SelectStmt {
 	selects := make([]*ast.SelectStmt, 3)
-	for _, expr := range partition(t.expr) {
+	for _, expr := range partition(t.Expr) {
 		selectStmt := &*stmt
 		if selectStmt.From.TableRefs.On == nil {
 			selectStmt.From.TableRefs.On = &ast.OnCondition{Expr: expr}
@@ -55,7 +62,7 @@ func (t *TLPTrans) transJoin(stmt *ast.SelectStmt) []*ast.SelectStmt {
 
 func (t *TLPTrans) transWhere(stmt *ast.SelectStmt) []*ast.SelectStmt {
 	selects := make([]*ast.SelectStmt, 3)
-	for _, expr := range partition(t.expr) {
+	for _, expr := range partition(t.Expr) {
 		selectStmt := &*stmt
 		if selectStmt.Where == nil {
 			selectStmt.Where = expr
