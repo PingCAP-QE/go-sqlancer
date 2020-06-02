@@ -1,4 +1,4 @@
-package pivot
+package sqlancer
 
 import (
 	"errors"
@@ -18,28 +18,26 @@ type Config struct {
 	Silent bool
 	Debug  bool
 
-	ViewCount int
-	Hint      bool
-	ExprIndex bool
-	// TODO implement them
-	PrepareStmt bool
-	ModeNoREC   bool
-	ModePQS     bool
+	TotalViewCount int
+
+	EnableHint      bool
+	EnableExprIndex bool
+	EnableNoRECMode bool
+	EnablePQSMode   bool
 }
 
 // NewConfig create default config
 func NewConfig() *Config {
 	return &Config{
-		DSN:         "",
-		PrepareStmt: false,
-		Hint:        false,
-		Depth:       1,
-		Silent:      false,
-		Debug:       false,
-		ViewCount:   10,
-		ExprIndex:   false,
-		ModeNoREC:   true,
-		ModePQS:     true,
+		DSN:             "",
+		EnableHint:      false,
+		Depth:           1,
+		Silent:          false,
+		Debug:           false,
+		TotalViewCount:  10,
+		EnableExprIndex: false,
+		EnableNoRECMode: true,
+		EnablePQSMode:   true,
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-mesh/go-sqlancer/pkg/pivot"
+	"github.com/chaos-mesh/go-sqlancer/pkg/sqlancer"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -24,10 +24,10 @@ const (
 )
 
 var (
-	conf      = pivot.NewConfig()
+	conf      = sqlancer.NewConfig()
 	dsn       = flag.String(nmDSN, "", "dsn of target db for testing")
 	viewCount = flag.Int(nmViewCount, 10, "count of views to be created")
-	duration  = flag.Duration(nmDuration, 5*time.Minute, "fuzz duration")
+	duration  = flag.Duration(nmDuration, 5*time.Hour, "fuzz duration")
 	depth     = flag.Int(sqlDepth, 1, "sql depth")
 	silent    = flag.Bool(silentMode, false, "silent when verify failed")
 	debug     = flag.Bool(nmDebug, false, "enable debug output")
@@ -38,19 +38,14 @@ var (
 
 func main() {
 	loadConfig()
-	p, err := pivot.NewPivot(conf)
+	sqlancer, err := sqlancer.NewSQLancer(conf)
 	if err != nil {
-		panic(fmt.Sprintf("new pivot failed, error: %+v\n", err))
+		panic(fmt.Sprintf("new sqlancer failed, error: %+v\n", err))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), *duration)
 	defer cancel()
-	fmt.Printf("start pivot test\n")
-	p.Start(ctx)
-	fmt.Printf("wait for finish\n")
-
-	<-ctx.Done()
-	p.Close()
+	sqlancer.Start(ctx)
 }
 
 func loadConfig() {
@@ -69,7 +64,7 @@ func loadConfig() {
 		panic("empty dsn")
 	}
 	if actualFlags[nmViewCount] {
-		conf.ViewCount = *viewCount
+		conf.TotalViewCount = *viewCount
 	}
 	if actualFlags[sqlDepth] {
 		conf.Depth = *depth
@@ -81,10 +76,10 @@ func loadConfig() {
 		conf.Debug = *debug
 	}
 	if actualFlags[nmHint] {
-		conf.Hint = *hint
+		conf.EnableHint = *hint
 	}
 	if actualFlags[nmExprIdx] {
-		conf.ExprIndex = *exprIdx
+		conf.EnableExprIndex = *exprIdx
 	}
 	if actualFlags[nmMode] {
 		if len(*mode) == 0 {
@@ -94,11 +89,11 @@ func loadConfig() {
 		hasSet := false
 		for _, i := range approaches {
 			if strings.ToLower(i) == "norec" {
-				conf.ModeNoREC = true
+				conf.EnableNoRECMode = true
 				hasSet = true
 			}
 			if strings.ToLower(i) == "pqs" {
-				conf.ModePQS = true
+				conf.EnablePQSMode = true
 				hasSet = true
 			}
 		}

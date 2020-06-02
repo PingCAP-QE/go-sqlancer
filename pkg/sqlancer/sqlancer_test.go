@@ -1,4 +1,4 @@
-package pivot
+package sqlancer
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ func helperMakeTable() *types.Table {
 }
 
 func TestDeleteStmt(t *testing.T) {
-	p, _ := NewPivot(NewConfig())
+	p, _ := NewSQLancer(NewConfig())
 	p.Tables = []types.Table{*helperMakeTable(), *helperMakeTable()}
 	s, err := p.DeleteDMLStmt(p.Tables, p.Tables[0])
 	fmt.Println(s)
@@ -39,7 +39,7 @@ func TestDeleteStmt(t *testing.T) {
 }
 
 func TestUpdateStmt(t *testing.T) {
-	p, _ := NewPivot(NewConfig())
+	p, _ := NewSQLancer(NewConfig())
 	p.Tables = []types.Table{*helperMakeTable(), *helperMakeTable()}
 	s, err := p.UpdateDMLStmt(p.Tables, p.Tables[0])
 	fmt.Println(s)
@@ -47,7 +47,7 @@ func TestUpdateStmt(t *testing.T) {
 }
 
 func TestNoRecNormal(t *testing.T) {
-	p, _ := NewPivot(NewConfig())
+	p, _ := NewSQLancer(NewConfig())
 	p.Tables = []types.Table{*helperMakeTable(), *helperMakeTable()}
 	s, sql, err := p.GenNoRecNormalSelectStmt(p.Tables)
 	fmt.Println(s, sql)
@@ -55,7 +55,7 @@ func TestNoRecNormal(t *testing.T) {
 }
 
 func TestNoRecNoOpt(t *testing.T) {
-	p, _ := NewPivot(NewConfig())
+	p, _ := NewSQLancer(NewConfig())
 	p.Tables = []types.Table{*helperMakeTable(), *helperMakeTable()}
 	s, sql1, err := p.GenNoRecNormalSelectStmt(p.Tables)
 	fmt.Println(s, sql1)
