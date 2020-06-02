@@ -185,13 +185,13 @@ func (p *SQLancer) populateData() {
 			var dmlStmt string
 			switch Rd(2) {
 			case 0:
-				dmlStmt, err = p.DeleteDMLStmt(tables, *table)
+				dmlStmt, err = p.DeleteStmt(tables, *table)
 				if err != nil {
 					// TODO: goto next generation
 					log.L().Error("generate delete stmt failed", zap.Error(err))
 				}
 			default:
-				dmlStmt, err = p.UpdateDMLStmt(tables, *table)
+				dmlStmt, err = p.UpdateStmt(tables, *table)
 				if err != nil {
 					// TODO: goto next generation
 					log.L().Error("generate update stmt failed", zap.Error(err))
@@ -274,14 +274,14 @@ func (p *SQLancer) progress(ctx context.Context) {
 		if err != nil {
 			log.L().Fatal("choose pivot row failed", zap.Error(err))
 		}
-		selectAst, selectSQL, columns, updatedPivotRows, tableMap, err := p.GenSelectStmt(pivotRows, usedTables)
+		selectAST, selectSQL, columns, pivotRows, err := p.GenSelectStmt(pivotRows, usedTables)
 		p.withTxn(func() error {
 			resultRows, err := p.execSelect(selectSQL)
 			if err != nil {
 				log.L().Error("execSelect failed", zap.Error(err))
 				return err
 			}
-			correct := p.verify(updatedPivotRows, columns, resultRows)
+			correct := p.verifyPQS(pivotRows, columns, resultRows)
 			if !correct {
 				// subSQL, err := p.minifySelect(selStmt, pivotRows, usedTables, columns)
 				// if err != nil {
@@ -293,7 +293,7 @@ func (p *SQLancer) progress(ctx context.Context) {
 				// 		fmt.Printf("sub query:\n%s\n", subSQL)
 				// 	}
 				// }
-				dust := knownbugs.NewDustbin([]ast.Node{selectAst}, pivotRows)
+				dust := knownbugs.NewDustbin([]ast.Node{selectAST}, pivotRows)
 				if dust.IsKnownBug() {
 					return nil
 				}
@@ -306,8 +306,7 @@ func (p *SQLancer) progress(ctx context.Context) {
 			}
 			if p.roundInBatch <= p.conf.TotalViewCount {
 				if err := p.executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.roundInBatch), selectSQL, len(resultRows), columns); err != nil {
-					fmt.Println("create view failed", tableMap)
-					panic(err)
+					log.L().Error("create view failed", zap.Error(err))
 				}
 			}
 			if p.roundInBatch == p.conf.TotalViewCount {
@@ -408,7 +407,7 @@ func (p *SQLancer) createExpressionIndex() *ast.CreateIndexStmt {
 		gCtx := generator.NewGenCtx([]Table{table}, nil)
 		gCtx.IsInExprIndex = true
 		gCtx.EnableLeftRightJoin = false
-		exprs = append(exprs, &ast.ParenthesesExpr{Expr: p.WhereClauseAst(gCtx, 1)})
+		exprs = append(exprs, &ast.ParenthesesExpr{Expr: p.ConditionClause(gCtx, 1)})
 	}
 	node := ast.CreateIndexStmt{}
 	node.IndexName = "idx_" + RdStringChar(5)
@@ -466,17 +465,9 @@ func (p *SQLancer) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table
 }
 
 func (p *SQLancer) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
-	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, *generator.GenCtx, error) {
+	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, error) {
 	genCtx := generator.NewGenCtx(usedTables, pivotRows)
-	stmtAst, err := p.SelectStmtAst(genCtx, p.conf.Depth)
-	if err != nil {
-		return nil, "", nil, nil, nil, err
-	}
-	sql, columns, updatedPivotRows, err := p.SelectStmt(&stmtAst, genCtx)
-	if err != nil {
-		return nil, "", nil, nil, nil, err
-	}
-	return &stmtAst, sql, columns, updatedPivotRows, genCtx, nil
+	return p.Generator.SelectStmt(genCtx, p.conf.Depth)
 }
 
 func (p *SQLancer) ExecAndVerify(stmt *ast.SelectStmt, originRow map[string]*connection.QueryItem, columns []Column) (bool, error) {
@@ -488,7 +479,7 @@ func (p *SQLancer) ExecAndVerify(stmt *ast.SelectStmt, originRow map[string]*con
 	if err != nil {
 		return false, err
 	}
-	res := p.verify(originRow, columns, resultSets)
+	res := p.verifyPQS(originRow, columns, resultSets)
 	return res, nil
 }
 
@@ -498,7 +489,7 @@ func (p *SQLancer) execSelect(stmt string) ([][]*connection.QueryItem, error) {
 	return p.executor.GetConn().Select(stmt)
 }
 
-func (p *SQLancer) verify(originRow map[string]*connection.QueryItem, columns []Column, resultSets [][]*connection.QueryItem) bool {
+func (p *SQLancer) verifyPQS(originRow map[string]*connection.QueryItem, columns []Column, resultSets [][]*connection.QueryItem) bool {
 	for _, row := range resultSets {
 		if p.checkRow(originRow, columns, row) {
 			return true
@@ -557,16 +548,10 @@ func (p *SQLancer) refreshDatabase(ctx context.Context) {
 
 func (p *SQLancer) GenNoRecNormalSelectStmt() (*ast.SelectStmt, string, error) {
 	genCtx := generator.NewGenCtx(p.randTables(), nil)
-	genCtx.IgnorePivotRow = true
-	stmtAst, err := p.SelectStmtAst(genCtx, p.conf.Depth)
-	if err != nil {
-		return nil, "", err
-	}
-	sql, _, _, err := p.SelectStmt(&stmtAst, genCtx)
-	if err != nil {
-		return nil, "", err
-	}
-	return &stmtAst, sql, nil
+	genCtx.IsNoRECMode = true
+
+	selectAST, selectSQL, _, _, err := p.Generator.SelectStmt(genCtx, p.conf.Depth)
+	return selectAST, selectSQL, err
 }
 
 func (p *SQLancer) GenNoRecSelectStmtNoOpt(node *ast.SelectStmt) (*ast.SelectStmt, string, error) {
