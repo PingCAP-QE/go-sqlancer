@@ -12,15 +12,15 @@ import (
 )
 
 const (
-	nmDSN       = "dsn"
-	nmViewCount = "view"
-	nmDuration  = "duration"
-	sqlDepth    = "depth"
-	silentMode  = "silent"
-	nmDebug     = "debug"
-	nmHint      = "hint"
-	nmExprIdx   = "expr-index"
-	nmMode      = "mode"
+	nmDSN        = "dsn"
+	nmViewCount  = "view"
+	nmDuration   = "duration"
+	nmSqlDepth   = "depth"
+	nmSilentMode = "silent"
+	nmLogLevel   = "log-level"
+	nmHint       = "hint"
+	nmExprIdx    = "expr-index"
+	nmMode       = "mode"
 )
 
 var (
@@ -28,9 +28,9 @@ var (
 	dsn       = flag.String(nmDSN, "", "dsn of target db for testing")
 	viewCount = flag.Int(nmViewCount, 10, "count of views to be created")
 	duration  = flag.Duration(nmDuration, 5*time.Hour, "fuzz duration")
-	depth     = flag.Int(sqlDepth, 1, "sql depth")
-	silent    = flag.Bool(silentMode, false, "silent when verify failed")
-	debug     = flag.Bool(nmDebug, false, "enable debug output")
+	depth     = flag.Int(nmSqlDepth, 1, "sql depth")
+	silent    = flag.Bool(nmSilentMode, false, "silent when verify failed")
+	logLevel  = flag.String(nmLogLevel, "info", "set log level: info, warn, error, debug [default: info]")
 	hint      = flag.Bool(nmHint, false, "enable sql hint for TiDB")
 	exprIdx   = flag.Bool(nmExprIdx, false, "enable create expression index")
 	mode      = flag.String(nmMode, "pqs|norec", "use NoRec or PQS method or both, split by vertical bar")
@@ -66,14 +66,14 @@ func loadConfig() {
 	if actualFlags[nmViewCount] {
 		conf.TotalViewCount = *viewCount
 	}
-	if actualFlags[sqlDepth] {
+	if actualFlags[nmSqlDepth] {
 		conf.Depth = *depth
 	}
-	if actualFlags[silentMode] {
+	if actualFlags[nmSilentMode] {
 		conf.Silent = *silent
 	}
-	if actualFlags[nmDebug] {
-		conf.Debug = *debug
+	if actualFlags[nmLogLevel] {
+		conf.LogLevel = *logLevel
 	}
 	if actualFlags[nmHint] {
 		conf.EnableHint = *hint

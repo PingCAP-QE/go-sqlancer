@@ -12,11 +12,11 @@ var (
 
 // Config struct
 type Config struct {
-	DSN    string
-	DBName string
-	Depth  int
-	Silent bool
-	Debug  bool
+	DSN      string
+	DBName   string
+	Depth    int
+	Silent   bool
+	LogLevel string
 
 	TotalViewCount int
 
@@ -30,11 +30,11 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		DSN:             "",
-		EnableHint:      false,
 		Depth:           1,
 		Silent:          false,
-		Debug:           false,
+		LogLevel:        "info",
 		TotalViewCount:  10,
+		EnableHint:      false,
 		EnableExprIndex: false,
 		EnableNoRECMode: true,
 		EnablePQSMode:   true,

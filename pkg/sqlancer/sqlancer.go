@@ -52,6 +52,7 @@ type SQLancer struct {
 
 // NewSQLancer ...
 func NewSQLancer(conf *Config) (*SQLancer, error) {
+	log.InitLogger(&log.Config{Level: conf.LogLevel, File: log.FileLogConfig{}})
 	e, err := executor.New(conf.DSN, conf.DBName)
 	if err != nil {
 		return nil, err
@@ -210,10 +211,7 @@ func (p *SQLancer) populateData() {
 			log.L().Error("insert data failed", zap.String("sql", countSQL), zap.Error(err))
 		}
 		count := qi[0][0].ValString
-		if p.conf.Debug {
-			log.L().Debug("table check records count", zap.String(table.Name.String(), count))
-		}
-
+		log.L().Debug("table check records count", zap.String(table.Name.String(), count))
 		if c, _ := strconv.ParseUint(count, 10, 64); c == 0 {
 			log.L().Info(table.Name.String() + " is empty after DELETE")
 			insertData()
@@ -354,17 +352,13 @@ func (p *SQLancer) withTxn(do func() error) error {
 			log.L().Error("begin txn failed", zap.Error(err))
 			return err
 		}
-		if p.conf.Debug {
-			log.L().Debug("begin txn success")
-		}
+		log.L().Debug("begin txn success")
 		defer func() {
 			if err = p.executor.GetConn().Commit(); err != nil {
 				log.L().Error("commit txn failed", zap.Error(err))
 				return
 			}
-			if p.conf.Debug {
-				log.L().Debug("commit txn success")
-			}
+			log.L().Debug("commit txn success")
 		}()
 	}
 	return do()
@@ -500,9 +494,7 @@ func (p *SQLancer) ExecAndVerify(stmt *ast.SelectStmt, originRow map[string]*con
 
 // may not return string
 func (p *SQLancer) execSelect(stmt string) ([][]*connection.QueryItem, error) {
-	if p.conf.Debug {
-		fmt.Println("[DEBUG] SQL exec: " + stmt)
-	}
+	log.L().Debug("execSelect", zap.String("stmt", stmt))
 	return p.executor.GetConn().Select(stmt)
 }
 
@@ -510,18 +502,6 @@ func (p *SQLancer) verify(originRow map[string]*connection.QueryItem, columns []
 	for _, row := range resultSets {
 		if p.checkRow(originRow, columns, row) {
 			return true
-		}
-	}
-	if p.conf.Debug {
-		fmt.Println("[DEBUG]")
-		fmt.Println("  =========  ORIGIN ROWS ======")
-		for k, v := range originRow {
-			fmt.Printf("  key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
-		}
-
-		fmt.Println("  =========  COLUMNS ======")
-		for _, c := range columns {
-			fmt.Printf("  Table: %s, Column: %s\n", c.Table, c.Name)
 		}
 	}
 	return false
@@ -571,11 +551,8 @@ func (p *SQLancer) refreshDatabase(ctx context.Context) {
 	defer func() {
 		p.inWrite.Unlock()
 	}()
-	if p.conf.Debug {
-		fmt.Println("refresh database")
-	}
+	log.L().Debug("refresh database")
 	p.setUpDB(ctx)
-
 }
 
 func (p *SQLancer) GenNoRecNormalSelectStmt() (*ast.SelectStmt, string, error) {
