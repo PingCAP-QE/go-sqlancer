@@ -10,11 +10,11 @@ import (
 
 var (
 	TestCases = [][]string{
-		{"SELECT * FROM t WHERE t.c", "SELECT * FROM t WHERE t.c IS TRUE UNION ALL SELECT * FROM t WHERE t.c IS FALSE SELECT * FROM t WHERE t.c IS NULL"},
+		{"SELECT * FROM t WHERE t.c", "SELECT * FROM t WHERE t.c IS TRUE UNION ALL SELECT * FROM t WHERE t.c IS FALSE UNION ALL SELECT * FROM t WHERE t.c IS NULL"},
 	}
 )
 
-func testTLPTrans_Trans(t *testing.T, parser *parser.Parser, input, expect string) {
+func TLPTransTrans(t *testing.T, parser *parser.Parser, input, expect string) {
 	nodes, warns, err := parser.Parse(input, "", "")
 	assert.Nil(t, err)
 	assert.Empty(t, warns)
@@ -42,6 +42,6 @@ func testTLPTrans_Trans(t *testing.T, parser *parser.Parser, input, expect strin
 func TestTLPTrans_Trans(t *testing.T) {
 	parser := parser.New()
 	for _, testCase := range TestCases {
-		testTLPTrans_Trans(t, parser, testCase[0], testCase[1])
+		TLPTransTrans(t, parser, testCase[0], testCase[1])
 	}
 }

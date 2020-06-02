@@ -26,7 +26,7 @@ func Trans(transformers []Transformer, stmt *ast.SelectStmt, Depth int) []ast.Re
 		return []ast.ResultSetNode{random().Trans(stmt)}
 	}
 
-	resultSets := make([]ast.ResultSetNode, Depth+1)
+	resultSets := make([]ast.ResultSetNode, 0, Depth+1)
 	for i := 0; i < Depth; i++ {
 		transformer := random()
 		resultSets = append(resultSets, transformer.Trans(stmt))

@@ -33,7 +33,7 @@ func (t *TLPTrans) Trans(stmt *ast.SelectStmt) ast.ResultSetNode {
 }
 
 func (t *TLPTrans) transGroupBy(stmt *ast.SelectStmt) []*ast.SelectStmt {
-	selects := make([]*ast.SelectStmt, 3)
+	selects := make([]*ast.SelectStmt, 0, 3)
 	for _, expr := range partition(t.Expr) {
 		selectStmt := &*stmt
 		if selectStmt.Having == nil {
@@ -47,7 +47,7 @@ func (t *TLPTrans) transGroupBy(stmt *ast.SelectStmt) []*ast.SelectStmt {
 }
 
 func (t *TLPTrans) transJoin(stmt *ast.SelectStmt) []*ast.SelectStmt {
-	selects := make([]*ast.SelectStmt, 3)
+	selects := make([]*ast.SelectStmt, 0, 3)
 	for _, expr := range partition(t.Expr) {
 		selectStmt := &*stmt
 		if selectStmt.From.TableRefs.On == nil {
@@ -61,7 +61,7 @@ func (t *TLPTrans) transJoin(stmt *ast.SelectStmt) []*ast.SelectStmt {
 }
 
 func (t *TLPTrans) transWhere(stmt *ast.SelectStmt) []*ast.SelectStmt {
-	selects := make([]*ast.SelectStmt, 3)
+	selects := make([]*ast.SelectStmt, 0, 3)
 	for _, expr := range partition(t.Expr) {
 		selectStmt := &*stmt
 		if selectStmt.Where == nil {
