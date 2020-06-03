@@ -31,5 +31,21 @@ func Trans(transformers []Transformer, stmt *ast.SelectStmt, Depth int) []ast.Re
 		transformer := random()
 		resultSets = append(resultSets, transformer.Trans(stmt))
 	}
+	resultSets = append(resultSets, union(resultSets))
 	return resultSets
+}
+
+func union(nodes []ast.ResultSetNode) *ast.UnionStmt {
+	selects := make([]*ast.SelectStmt, 0)
+	for _, node := range nodes {
+		switch stmt := node.(type) {
+		case *ast.SelectStmt:
+			selects = append(selects, stmt)
+		case *ast.UnionStmt:
+			if stmt.SelectList != nil && stmt.SelectList.Selects != nil {
+				selects = append(selects, stmt.SelectList.Selects...)
+			}
+		}
+	}
+	return &ast.UnionStmt{SelectList: &ast.UnionSelectList{Selects: selects}}
 }
