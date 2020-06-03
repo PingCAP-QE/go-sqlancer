@@ -2,10 +2,16 @@ package equtrans
 
 import (
 	"fmt"
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
+
+type TestCase struct {
+	origin, expect string
+}
 
 func TestParse(_t *testing.T) {
 	stmt, warns, err := parser.New().Parse("SELECT * FROM t0, t2 UNION SELECT * FROM t0, t2 UNION ALL SELECT * FROM t0, t2", "", "")
@@ -16,6 +22,27 @@ func TestParse(_t *testing.T) {
 	fmt.Printf("%#v", stmt[0].(*ast.UnionStmt).SelectList.Selects[0])
 }
 
-func TestTrans(_t *testing.T) {
+func TransTest(t *testing.T, parser *parser.Parser, testCase TestCase, transformer Transformer) {
+	nodes, warns, err := parser.Parse(testCase.origin, "", "")
+	assert.Nil(t, err)
+	assert.Empty(t, warns)
+	assert.True(t, len(nodes) == 1)
+	selectStmt, ok := nodes[0].(*ast.SelectStmt)
+	assert.True(t, ok)
+
+	output, err := util.BufferOut(transformer.Trans(selectStmt))
+	assert.Nil(t, err)
+
+	expectNodes, warns, err := parser.Parse(testCase.expect, "", "")
+	assert.Nil(t, err)
+	assert.Empty(t, warns)
+	assert.True(t, len(nodes) == 1)
+
+	expect, err := util.BufferOut(expectNodes[0])
+	assert.Nil(t, err)
+	assert.Equal(t, expect, output)
+}
+
+func TestTLPTrans(t *testing.T) {
 	Trans([]Transformer{NoRECTrans}, new(ast.SelectStmt), 1)
 }
