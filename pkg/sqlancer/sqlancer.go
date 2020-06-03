@@ -1,8 +1,7 @@
-package pivot
+package sqlancer
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -26,62 +25,67 @@ import (
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
-const NOREC_TMP_TABLE_NAME = "tmp_table"
-const NOREC_TMP_COL_NAME = "tmp_col"
+const noRECTmpTableName = "tmp_table"
+const noRECTmpColName = "tmp_col"
 
 var (
 	allColumnTypes = []string{"int", "float", "varchar"}
 )
 
-type Pivot struct {
-	wg       sync.WaitGroup
-	Conf     *Config
-	DB       *sql.DB
-	Executor *executor.Executor
-	round    int
-	batch    int
-	inWrite  sync.RWMutex
+type checkMode = int
 
+const (
+	modePQS checkMode = iota
+	modeNoREC
+	modeTLP
+)
+
+type SQLancer struct {
 	generator.Generator
+	conf     *Config
+	executor *executor.Executor
+
+	inWrite      sync.RWMutex
+	batch        int
+	roundInBatch int
 }
 
-// NewPivot ...
-func NewPivot(conf *Config) (*Pivot, error) {
+// NewSQLancer ...
+func NewSQLancer(conf *Config) (*SQLancer, error) {
+	log.InitLogger(&log.Config{Level: conf.LogLevel, File: log.FileLogConfig{}})
 	e, err := executor.New(conf.DSN, conf.DBName)
 	if err != nil {
 		return nil, err
 	}
-	return &Pivot{
-		Conf:      conf,
-		Executor:  e,
-		Generator: generator.Generator{Config: generator.Config{Hint: conf.Hint}},
+	return &SQLancer{
+		conf:      conf,
+		executor:  e,
+		Generator: generator.Generator{Config: generator.Config{Hint: conf.EnableHint}},
 	}, nil
 }
 
-// Start Pivot
-func (p *Pivot) Start(ctx context.Context) {
-	p.cleanup(ctx)
-	p.kickup(ctx)
+// Start SQLancer
+func (p *SQLancer) Start(ctx context.Context) {
+	p.run(ctx)
+	p.tearDown()
 }
 
-// Close Pivot
-func (p *Pivot) Close() {
-	p.wg.Wait()
-	p.Executor.Close()
+func (p *SQLancer) tearDown() {
+	p.executor.Close()
 }
 
 // LoadSchema load table/view/index schema
-func (p *Pivot) LoadSchema(ctx context.Context) {
+func (p *SQLancer) LoadSchema() {
 	rand.Seed(time.Now().UnixNano())
 	p.Tables = make([]Table, 0)
 
-	tables, err := p.Executor.GetConn().FetchTables(p.Conf.DBName)
+	tables, err := p.executor.GetConn().FetchTables(p.conf.DBName)
 	if err != nil {
 		panic(err)
 	}
 	for _, i := range tables {
 		t := Table{Name: CIStr(i)}
-		columns, err := p.Executor.GetConn().FetchColumns(p.Conf.DBName, i)
+		columns, err := p.executor.GetConn().FetchColumns(p.conf.DBName, i)
 		if err != nil {
 			panic(err)
 		}
@@ -94,7 +98,7 @@ func (p *Pivot) LoadSchema(ctx context.Context) {
 			col.ParseType(column[1])
 			t.Columns = append(t.Columns, col)
 		}
-		idx, err := p.Executor.GetConn().FetchIndexes(p.Conf.DBName, i)
+		idx, err := p.executor.GetConn().FetchIndexes(p.conf.DBName, i)
 		if err != nil {
 			panic(err)
 		}
@@ -105,51 +109,63 @@ func (p *Pivot) LoadSchema(ctx context.Context) {
 	}
 }
 
-func (p *Pivot) prepare(ctx context.Context) {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+// setUpDB clears dirty data, creates db, table and populates data
+func (p *SQLancer) setUpDB(ctx context.Context) {
+	_ = p.executor.Exec("drop database if exists " + p.conf.DBName)
+	_ = p.executor.Exec("create database " + p.conf.DBName)
+	_ = p.executor.Exec("use " + p.conf.DBName)
 
+	p.createSchema(ctx)
+	p.populateData()
+	p.createExprIdx()
+}
+
+func (p *SQLancer) createSchema(ctx context.Context) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	g, _ := errgroup.WithContext(ctx)
 	for index, columnTypes := range ComposeAllColumnTypes(-1, allColumnTypes) {
 		tableIndex := index
 		colTs := make([]string, len(columnTypes))
 		copy(colTs, columnTypes)
 		g.Go(func() error {
-			sql, _ := p.Executor.GenerateDDLCreateTable(tableIndex, colTs)
-			return p.Executor.Exec(sql.SQLStmt)
+			sql, _ := p.executor.GenerateDDLCreateTable(tableIndex, colTs)
+			return p.executor.Exec(sql.SQLStmt)
 		})
 	}
 	if err := g.Wait(); err != nil {
 		log.L().Error("create table failed", zap.Error(err))
 	}
 
-	err := p.Executor.ReloadSchema()
+	err := p.executor.ReloadSchema()
 	if err != nil {
 		log.Error("reload data failed!")
 	}
 	for i := 0; i < r.Intn(10); i++ {
-		sql, err := p.Executor.GenerateDDLCreateIndex()
+		sql, err := p.executor.GenerateDDLCreateIndex()
 		if err != nil {
 			fmt.Println(err)
 		}
-		err = p.Executor.Exec(sql.SQLStmt)
+		err = p.executor.Exec(sql.SQLStmt)
 		if err != nil {
 			log.L().Error("create index failed", zap.String("sql", sql.SQLStmt), zap.Error(err))
 		}
 	}
+	p.LoadSchema()
+}
 
-	p.LoadSchema(ctx)
-
-	if err := p.Executor.GetConn().Begin(); err != nil {
+func (p *SQLancer) populateData() {
+	var err error
+	if err := p.executor.GetConn().Begin(); err != nil {
 		log.L().Error("begin txn failed", zap.Error(err))
 		return
 	}
-	for _, table := range p.Executor.GetTables() {
+	for _, table := range p.executor.GetTables() {
 		insertData := func() {
-			sql, err := p.Executor.GenerateDMLInsertByTable(table.Name.String())
+			sql, err := p.executor.GenerateDMLInsertByTable(table.Name.String())
 			if err != nil {
 				panic(errors.ErrorStack(err))
 			}
-			err = p.Executor.Exec(sql.SQLStmt)
+			err = p.executor.Exec(sql.SQLStmt)
 			if err != nil {
 				log.L().Error("insert data failed", zap.String("sql", sql.SQLStmt), zap.Error(err))
 			}
@@ -169,20 +185,20 @@ func (p *Pivot) prepare(ctx context.Context) {
 			var dmlStmt string
 			switch Rd(2) {
 			case 0:
-				dmlStmt, err = p.DeleteDMLStmt(tables, *table)
+				dmlStmt, err = p.DeleteStmt(tables, *table)
 				if err != nil {
 					// TODO: goto next generation
 					log.L().Error("generate delete stmt failed", zap.Error(err))
 				}
 			default:
-				dmlStmt, err = p.UpdateDMLStmt(tables, *table)
+				dmlStmt, err = p.UpdateStmt(tables, *table)
 				if err != nil {
 					// TODO: goto next generation
 					log.L().Error("generate update stmt failed", zap.Error(err))
 				}
 			}
 			log.L().Info("Update/Delete statement", zap.String(table.Name.String(), dmlStmt))
-			err = p.Executor.Exec(dmlStmt)
+			err = p.executor.Exec(dmlStmt)
 			if err != nil {
 				log.L().Error("update/delete data failed", zap.String("sql", dmlStmt), zap.Error(err))
 				panic(err)
@@ -190,169 +206,166 @@ func (p *Pivot) prepare(ctx context.Context) {
 		}
 
 		countSQL := "select count(*) from " + table.Name.String()
-		qi, err := p.Executor.GetConn().Select(countSQL)
+		qi, err := p.executor.GetConn().Select(countSQL)
 		if err != nil {
 			log.L().Error("insert data failed", zap.String("sql", countSQL), zap.Error(err))
 		}
 		count := qi[0][0].ValString
-		if p.Conf.Debug {
-			log.L().Debug("table check records count", zap.String(table.Name.String(), count))
-		}
-
+		log.L().Debug("table check records count", zap.String(table.Name.String(), count))
 		if c, _ := strconv.ParseUint(count, 10, 64); c == 0 {
 			log.L().Info(table.Name.String() + " is empty after DELETE")
 			insertData()
 		}
 	}
-	if err := p.Executor.GetConn().Commit(); err != nil {
+	if err := p.executor.GetConn().Commit(); err != nil {
 		log.L().Error("commit txn failed", zap.Error(err))
 		return
 	}
 }
 
-func (p *Pivot) cleanup(ctx context.Context) {
-	_ = p.Executor.Exec("drop database if exists " + p.Conf.DBName)
-	_ = p.Executor.Exec("create database " + p.Conf.DBName)
-	_ = p.Executor.Exec("use " + p.Conf.DBName)
+func (p *SQLancer) createExprIdx() {
+	if p.conf.EnableExprIndex {
+		p.addExprIndex()
+		// reload indexes created
+		p.LoadSchema()
+	}
 }
 
-func (p *Pivot) kickup(ctx context.Context) {
-	p.wg.Add(1)
-	p.refreshDatabase(ctx)
-
-	go func() {
-		defer p.wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				for {
-					p.round++
-					p.progress(ctx)
-					if p.round > 100 {
-						p.refreshDatabase(ctx)
-						p.round = 0
-						p.batch++
-					}
-				}
+func (p *SQLancer) run(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if p.roundInBatch == 0 {
+				p.refreshDatabase(ctx)
+				p.batch++
 			}
+			p.progress(ctx)
+			p.roundInBatch = (p.roundInBatch + 1) % 100
 		}
-
-	}()
+	}
 }
 
-func (p *Pivot) progress(ctx context.Context) {
+func (p *SQLancer) progress(ctx context.Context) {
 	p.inWrite.RLock()
 	defer func() {
 		p.inWrite.RUnlock()
 	}()
+	var modes []checkMode
+	// Because we creates view just in time with process(we creates views on first TotalViewCount rounds)
+	// and current implementation depends on the PQS to ensures that there exists at lease one row in that view
+	// so we must choose modePQS in this scenario
+	if p.roundInBatch < p.conf.TotalViewCount {
+		modes = []checkMode{modePQS}
+	} else {
+		if p.conf.EnableNoRECMode {
+			modes = append(modes, modeNoREC)
+		}
+		if p.conf.EnablePQSMode {
+			modes = append(modes, modePQS)
+		}
+	}
+	mode := modes[Rd(len(modes))]
+	switch mode {
+	case modePQS:
+		// rand one pivot row for one table
+		pivotRows, usedTables, err := p.ChoosePivotedRow()
+		if err != nil {
+			log.L().Fatal("choose pivot row failed", zap.Error(err))
+		}
+		selectAST, selectSQL, columns, pivotRows, err := p.GenSelectStmt(pivotRows, usedTables)
+		p.withTxn(RdBool(), func() error {
+			resultRows, err := p.execSelect(selectSQL)
+			if err != nil {
+				log.L().Error("execSelect failed", zap.Error(err))
+				return err
+			}
+			correct := p.verifyPQS(pivotRows, columns, resultRows)
+			if !correct {
+				// subSQL, err := p.minifySelect(selStmt, pivotRows, usedTables, columns)
+				// if err != nil {
+				// 	log.Error("occurred an error when try to simplify select", zap.String("sql", selectSQL), zap.Error(err))
+				// 	fmt.Printf("query:\n%s\n", selectSQL)
+				// } else {
+				// 	fmt.Printf("query:\n%s\n", selectSQL)
+				// 	if len(subSQL) < len(selectSQL) {
+				// 		fmt.Printf("sub query:\n%s\n", subSQL)
+				// 	}
+				// }
+				dust := knownbugs.NewDustbin([]ast.Node{selectAST}, pivotRows)
+				if dust.IsKnownBug() {
+					return nil
+				}
+				fmt.Printf("row:\n")
+				p.printPivotRows(pivotRows)
+				if p.roundInBatch < p.conf.TotalViewCount || p.conf.Silent {
+					panic("data verified failed")
+				}
+				return nil
+			}
+			if p.roundInBatch <= p.conf.TotalViewCount {
+				if err := p.executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.roundInBatch), selectSQL, len(resultRows), columns); err != nil {
+					log.L().Error("create view failed", zap.Error(err))
+				}
+			}
+			if p.roundInBatch == p.conf.TotalViewCount {
+				p.LoadSchema()
+				if err := p.executor.ReloadSchema(); err != nil {
+					panic(err)
+				}
+			}
+			log.L().Info("check finished", zap.String("mode", "PQS"), zap.Int("batch", p.batch), zap.Int("round", p.roundInBatch), zap.Bool("result", correct))
+			return nil
+		})
+	case modeNoREC:
+		selectAst, selectSQL, err := p.GenNoRecNormalSelectStmt()
+		if err != nil {
+			log.L().Error("generate NoREC SQL statement failed", zap.Error(err))
+		}
+		p.withTxn(RdBool(), func() error {
+			resultRows, err := p.execSelect(selectSQL)
+			if err != nil {
+				log.L().Error("execSelect failed", zap.Error(err))
+				return err
+			}
+			correct := p.verifyNoREC(selectAst, resultRows)
+			if !correct {
+				if !p.conf.Silent {
+					log.L().Fatal("data verified failed")
+				}
+			}
+			log.L().Info("check finished", zap.String("mode", "NoREC"), zap.Int("batch", p.batch), zap.Int("round", p.roundInBatch), zap.Bool("result", correct))
+			return nil
+		})
+	default:
+		log.L().Fatal("unknown check mode", zap.Int("mode", mode))
+	}
+}
 
-	// rand one pivot row for one table
-	pivotRows, usedTables, err := p.ChoosePivotedRow()
-	if err != nil {
-		panic(err)
-	}
-	var selectAst *ast.SelectStmt
-	var selectSQL string
-	var columns []Column
-	var updatedPivotRows map[string]*connection.QueryItem
-	var tableMap *generator.GenCtx
-	isNoREC := false
-	if p.Conf.ModePQS {
-		if p.Conf.ModeNoREC {
-			// choose test approach randomly
-			isNoREC = RdBool()
-		}
-	} else {
-		if p.Conf.ModeNoREC {
-			isNoREC = true
-		} else {
-			panic("no mode has been set")
-		}
-	}
-	// norec would be restrained in view generation phase
-	if isNoREC && p.round > p.Conf.ViewCount {
-		selectAst, selectSQL, err = p.GenNoRecNormalSelectStmt(usedTables)
-	} else {
-		isNoREC = false
-		// generate sql ast tree and
-		// generate sql where clause
-		selectAst, selectSQL, columns, updatedPivotRows, tableMap, err = p.GenSelectStmt(pivotRows, usedTables)
-	}
-	if err != nil {
-		panic(err)
-	}
-	dust := knownbugs.NewDustbin([]ast.Node{selectAst}, pivotRows)
+// if useExplicitTxn is set, a explicit transaction is used when doing action
+// otherwise, uses auto-commit
+func (p *SQLancer) withTxn(useExplicitTxn bool, action func() error) error {
+	var err error
 	// execute sql, ensure not null result set
-	if explicitTxn := RdBool(); explicitTxn {
-		if err = p.Executor.GetConn().Begin(); err != nil {
+	if useExplicitTxn {
+		if err = p.executor.GetConn().Begin(); err != nil {
 			log.L().Error("begin txn failed", zap.Error(err))
-			return
+			return err
 		}
-		if p.Conf.Debug {
-			log.L().Debug("begin txn success")
-		}
+		log.L().Debug("begin txn success")
 		defer func() {
-			if err = p.Executor.GetConn().Commit(); err != nil {
+			if err = p.executor.GetConn().Commit(); err != nil {
 				log.L().Error("commit txn failed", zap.Error(err))
 				return
 			}
-			if p.Conf.Debug {
-				log.L().Debug("commit txn success")
-			}
+			log.L().Debug("commit txn success")
 		}()
 	}
-	resultRows, err := p.execSelect(selectSQL)
-	if err != nil {
-		log.L().Error("execSelect failed", zap.Error(err))
-		return
-	}
-	correct := false
-	if isNoREC {
-		correct = p.verifyNoREC(selectAst, resultRows, usedTables)
-	} else {
-		// verify pivot row in result row set
-		correct = p.verify(updatedPivotRows, columns, resultRows)
-	}
-	fmt.Printf("Batch %d, Round %d, isNoRec: %v, verify result %v!\n", p.batch, p.round, isNoREC, correct)
-	if !correct {
-		// subSQL, err := p.minifySelect(selStmt, pivotRows, usedTables, columns)
-		// if err != nil {
-		// 	log.Error("occurred an error when try to simplify select", zap.String("sql", selectSQL), zap.Error(err))
-		// 	fmt.Printf("query:\n%s\n", selectSQL)
-		// } else {
-		// 	fmt.Printf("query:\n%s\n", selectSQL)
-		// 	if len(subSQL) < len(selectSQL) {
-		// 		fmt.Printf("sub query:\n%s\n", subSQL)
-		// 	}
-		// }
-		if !isNoREC && dust.IsKnownBug() {
-			return
-		}
-		fmt.Printf("row:\n")
-		p.printPivotRows(pivotRows)
-		if p.Conf.Silent && p.round >= p.Conf.ViewCount {
-			return
-		}
-		panic("data verified failed")
-	}
-	if p.round <= p.Conf.ViewCount {
-		if err := p.Executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.round), selectSQL, len(resultRows), columns); err != nil {
-			fmt.Println("create view failed", tableMap)
-			panic(err)
-		}
-	}
-	if p.round == p.Conf.ViewCount {
-		p.LoadSchema(ctx)
-		if err := p.Executor.ReloadSchema(); err != nil {
-			panic(err)
-		}
-	}
-	// log.Info("run one statement successfully!", zap.String("query", selectStmt))
+	return action()
 }
 
-func (p *Pivot) addExprIndex() {
+func (p *SQLancer) addExprIndex() {
 	for i := 0; i < Rd(10)+1; i++ {
 		n := p.createExpressionIndex()
 		if n == nil {
@@ -362,7 +375,7 @@ func (p *Pivot) addExprIndex() {
 		if sql, err := BufferOut(n); err != nil {
 			// should never panic
 			panic(errors.Trace(err))
-		} else if _, err = p.Executor.GetConn().Select(sql); err != nil {
+		} else if _, err = p.executor.GetConn().Select(sql); err != nil {
 			panic(errors.Trace(err))
 		}
 		fmt.Println("add one index on expression success SQL:" + sql)
@@ -370,7 +383,7 @@ func (p *Pivot) addExprIndex() {
 	fmt.Println("Create expression index successfully")
 }
 
-func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
+func (p *SQLancer) createExpressionIndex() *ast.CreateIndexStmt {
 	table := p.Tables[Rd(len(p.Tables))]
 	/* only contains a primary key col and a varchar col in `table_varchar`
 	   it will cause panic when create an expression index on it
@@ -396,7 +409,7 @@ func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 		gCtx := generator.NewGenCtx([]Table{table}, nil)
 		gCtx.IsInExprIndex = true
 		gCtx.EnableLeftRightJoin = false
-		exprs = append(exprs, &ast.ParenthesesExpr{Expr: p.WhereClauseAst(gCtx, 1)})
+		exprs = append(exprs, &ast.ParenthesesExpr{Expr: p.ConditionClause(gCtx, 1)})
 	}
 	node := ast.CreateIndexStmt{}
 	node.IndexName = "idx_" + RdStringChar(5)
@@ -413,7 +426,7 @@ func (p *Pivot) createExpressionIndex() *ast.CreateIndexStmt {
 	return &node
 }
 
-func (p *Pivot) randTables() []Table {
+func (p *SQLancer) randTables() []Table {
 	count := 1
 	if len(p.Tables) > 1 {
 		// avoid too deep joins
@@ -429,7 +442,7 @@ func (p *Pivot) randTables() []Table {
 
 // ChoosePivotedRow choose a row
 // it may move to another struct
-func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, error) {
+func (p *SQLancer) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, error) {
 	result := make(map[string]*connection.QueryItem)
 	usedTables := p.randTables()
 	var reallyUsed []Table
@@ -453,21 +466,13 @@ func (p *Pivot) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table, e
 	return result, reallyUsed, nil
 }
 
-func (p *Pivot) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
-	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, *generator.GenCtx, error) {
+func (p *SQLancer) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
+	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, error) {
 	genCtx := generator.NewGenCtx(usedTables, pivotRows)
-	stmtAst, err := p.SelectStmtAst(genCtx, p.Conf.Depth)
-	if err != nil {
-		return nil, "", nil, nil, nil, err
-	}
-	sql, columns, updatedPivotRows, err := p.SelectStmt(&stmtAst, genCtx)
-	if err != nil {
-		return nil, "", nil, nil, nil, err
-	}
-	return &stmtAst, sql, columns, updatedPivotRows, genCtx, nil
+	return p.Generator.SelectStmt(genCtx, p.conf.Depth)
 }
 
-func (p *Pivot) ExecAndVerify(stmt *ast.SelectStmt, originRow map[string]*connection.QueryItem, columns []Column) (bool, error) {
+func (p *SQLancer) ExecAndVerify(stmt *ast.SelectStmt, originRow map[string]*connection.QueryItem, columns []Column) (bool, error) {
 	sql, err := BufferOut(stmt)
 	if err != nil {
 		return false, err
@@ -476,40 +481,26 @@ func (p *Pivot) ExecAndVerify(stmt *ast.SelectStmt, originRow map[string]*connec
 	if err != nil {
 		return false, err
 	}
-	res := p.verify(originRow, columns, resultSets)
+	res := p.verifyPQS(originRow, columns, resultSets)
 	return res, nil
 }
 
 // may not return string
-func (p *Pivot) execSelect(stmt string) ([][]*connection.QueryItem, error) {
-	if p.Conf.Debug {
-		fmt.Println("[DEBUG] SQL exec: " + stmt)
-	}
-	return p.Executor.GetConn().Select(stmt)
+func (p *SQLancer) execSelect(stmt string) ([][]*connection.QueryItem, error) {
+	log.L().Debug("execSelect", zap.String("stmt", stmt))
+	return p.executor.GetConn().Select(stmt)
 }
 
-func (p *Pivot) verify(originRow map[string]*connection.QueryItem, columns []Column, resultSets [][]*connection.QueryItem) bool {
+func (p *SQLancer) verifyPQS(originRow map[string]*connection.QueryItem, columns []Column, resultSets [][]*connection.QueryItem) bool {
 	for _, row := range resultSets {
 		if p.checkRow(originRow, columns, row) {
 			return true
 		}
 	}
-	if p.Conf.Debug {
-		fmt.Println("[DEBUG]")
-		fmt.Println("  =========  ORIGIN ROWS ======")
-		for k, v := range originRow {
-			fmt.Printf("  key: %+v, value: [null: %v, value: %s]\n", k, v.Null, v.ValString)
-		}
-
-		fmt.Println("  =========  COLUMNS ======")
-		for _, c := range columns {
-			fmt.Printf("  Table: %s, Column: %s\n", c.Table, c.Name)
-		}
-	}
 	return false
 }
 
-func (p *Pivot) checkRow(originRow map[string]*connection.QueryItem, columns []Column, resultSet []*connection.QueryItem) bool {
+func (p *SQLancer) checkRow(originRow map[string]*connection.QueryItem, columns []Column, resultSet []*connection.QueryItem) bool {
 	for i, c := range columns {
 		// fmt.Printf("i: %d, column: %+v, left: %+v, right: %+v", i, c, originRow[c], resultSet[i])
 		if !compareQueryItem(originRow[c.GetAliasName().String()], resultSet[i]) {
@@ -519,7 +510,7 @@ func (p *Pivot) checkRow(originRow map[string]*connection.QueryItem, columns []C
 	return true
 }
 
-func (p *Pivot) printPivotRows(pivotRows map[string]*connection.QueryItem) {
+func (p *SQLancer) printPivotRows(pivotRows map[string]*connection.QueryItem) {
 	var tableColumns Columns
 	for column := range pivotRows {
 		parsed := strings.Split(column, ".")
@@ -548,45 +539,31 @@ func compareQueryItem(left *connection.QueryItem, right *connection.QueryItem) b
 	return (left.Null && right.Null) || (left.ValString == right.ValString)
 }
 
-func (p *Pivot) refreshDatabase(ctx context.Context) {
+func (p *SQLancer) refreshDatabase(ctx context.Context) {
 	p.inWrite.Lock()
 	defer func() {
 		p.inWrite.Unlock()
 	}()
-	if p.Conf.Debug {
-		fmt.Println("refresh database")
-	}
-	p.cleanup(ctx)
-	p.prepare(ctx)
-	if p.Conf.ExprIndex {
-		p.addExprIndex()
-		// reload indexes created
-		p.LoadSchema(ctx)
-	}
+	log.L().Debug("refresh database")
+	p.setUpDB(ctx)
 }
 
-func (p *Pivot) GenNoRecNormalSelectStmt(usedTables []Table) (*ast.SelectStmt, string, error) {
-	genCtx := generator.NewGenCtx(usedTables, nil)
-	genCtx.IgnorePivotRow = true
-	stmtAst, err := p.SelectStmtAst(genCtx, p.Conf.Depth)
-	if err != nil {
-		return nil, "", err
-	}
-	sql, _, _, err := p.SelectStmt(&stmtAst, genCtx)
-	if err != nil {
-		return nil, "", err
-	}
-	return &stmtAst, sql, nil
+func (p *SQLancer) GenNoRecNormalSelectStmt() (*ast.SelectStmt, string, error) {
+	genCtx := generator.NewGenCtx(p.randTables(), nil)
+	genCtx.IsNoRECMode = true
+
+	selectAST, selectSQL, _, _, err := p.Generator.SelectStmt(genCtx, p.conf.Depth)
+	return selectAST, selectSQL, err
 }
 
-func (p *Pivot) GenNoRecSelectStmtNoOpt(node *ast.SelectStmt) (*ast.SelectStmt, string, error) {
+func (p *SQLancer) GenNoRecSelectStmtNoOpt(node *ast.SelectStmt) (*ast.SelectStmt, string, error) {
 	sum := &ast.SelectField{
 		Expr: &ast.AggregateFuncExpr{
 			F: "sum",
 			Args: []ast.ExprNode{
 				&ast.ColumnNameExpr{
 					Name: &ast.ColumnName{
-						Name: model.NewCIStr(NOREC_TMP_COL_NAME),
+						Name: model.NewCIStr(noRECTmpColName),
 					},
 				},
 			},
@@ -595,7 +572,7 @@ func (p *Pivot) GenNoRecSelectStmtNoOpt(node *ast.SelectStmt) (*ast.SelectStmt, 
 	node.Fields.Fields = []*ast.SelectField{
 		&ast.SelectField{
 			Expr:   node.Where,
-			AsName: model.NewCIStr(NOREC_TMP_COL_NAME),
+			AsName: model.NewCIStr(noRECTmpColName),
 		},
 	}
 	node.Where = nil
@@ -613,7 +590,7 @@ func (p *Pivot) GenNoRecSelectStmtNoOpt(node *ast.SelectStmt) (*ast.SelectStmt, 
 		From: &ast.TableRefsClause{
 			TableRefs: &ast.Join{
 				Left: &ast.TableSource{
-					AsName: model.NewCIStr(NOREC_TMP_TABLE_NAME),
+					AsName: model.NewCIStr(noRECTmpTableName),
 					Source: node,
 				},
 			},
@@ -626,7 +603,7 @@ func (p *Pivot) GenNoRecSelectStmtNoOpt(node *ast.SelectStmt) (*ast.SelectStmt, 
 	return wrapNode, sql, nil
 }
 
-func (p *Pivot) verifyNoREC(node *ast.SelectStmt, rows [][]*connection.QueryItem, usedTables []Table) bool {
+func (p *SQLancer) verifyNoREC(node *ast.SelectStmt, rows [][]*connection.QueryItem) bool {
 	_, noOptSql, err := p.GenNoRecSelectStmtNoOpt(node)
 	if err != nil {
 		panic(fmt.Sprintf("generate no opt SQL failed err:%+v", err))

@@ -1,4 +1,4 @@
-package pivot
+package sqlancer
 
 import (
 	"testing"

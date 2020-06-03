@@ -21,14 +21,12 @@ import (
 )
 
 type Generator struct {
-	Tables           []types.Table
-	allowColumnTypes []string
-
 	Config
+	Tables []types.Table
 }
 
-func (g *Generator) SelectStmtAst(genCtx *GenCtx, depth int) (ast.SelectStmt, error) {
-	selectStmtNode := ast.SelectStmt{
+func (g *Generator) SelectStmt(genCtx *GenCtx, depth int) (*ast.SelectStmt, string, []types.Column, map[string]*connection.QueryItem, error) {
+	selectStmtNode := &ast.SelectStmt{
 		SelectStmtOpts: &ast.SelectStmtOpts{
 			SQLCache: true,
 		},
@@ -37,21 +35,18 @@ func (g *Generator) SelectStmtAst(genCtx *GenCtx, depth int) (ast.SelectStmt, er
 		},
 	}
 
-	selectStmtNode.From = &ast.TableRefsClause{
-		TableRefs: &ast.Join{
-			Left:  &ast.TableName{},
-			Right: &ast.TableName{},
-		},
-	}
+	selectStmtNode.From = g.TableRefsClause(genCtx)
+	g.walkTableRefs(selectStmtNode.From.TableRefs, genCtx)
 
-	g.genResultSetNode(selectStmtNode.From.TableRefs, genCtx)
-	g.genJoin(selectStmtNode.From.TableRefs, genCtx)
-	selectStmtNode.Where = g.WhereClauseAst(genCtx, depth)
+	selectStmtNode.Where = g.ConditionClause(genCtx, depth)
 	selectStmtNode.TableHints = g.tableHintsExpr(genCtx.UsedTables)
-	return selectStmtNode, nil
+
+	columnInfos, updatedPivotRows := g.walkResultFields(selectStmtNode, genCtx)
+	sql, err := BufferOut(selectStmtNode)
+	return selectStmtNode, sql, columnInfos, updatedPivotRows, err
 }
 
-func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int) ast.ExprNode {
+func (g *Generator) ConditionClause(ctx *GenCtx, depth int) ast.ExprNode {
 	// TODO: support subquery
 	// TODO: more ops
 	exprType := types.TypeNumberLikeArg
@@ -68,16 +63,6 @@ func (g *Generator) WhereClauseAst(ctx *GenCtx, depth int) ast.ExprNode {
 	}
 
 	return g.rectifyCondition(node, val)
-}
-
-// walk on select stmt
-func (g *Generator) SelectStmt(node *ast.SelectStmt, genCtx *GenCtx) (string, []types.Column, map[string]*connection.QueryItem, error) {
-	columnInfos, updatedPivotRows := g.walkResultFields(node, genCtx)
-	// s.walkOrderByClause(node.OrderBy, table)
-	// g.RectifyJoin(node.From.TableRefs, genCtx)
-	// s.walkExprNode(node.Where, table, nil)
-	sql, err := BufferOut(node)
-	return sql, columnInfos, updatedPivotRows, err
 }
 
 func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueExpr) ast.ExprNode {
@@ -117,7 +102,7 @@ func (g *Generator) rectifyCondition(node ast.ExprNode, val parser_driver.ValueE
 }
 
 func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx) ([]types.Column, map[string]*connection.QueryItem) {
-	if genCtx.IgnorePivotRow {
+	if genCtx.IsNoRECMode {
 		exprNode := &parser_driver.ValueExpr{}
 		tp := tidb_types.NewFieldType(mysql.TypeLonglong)
 		tp.Flag = 128
@@ -135,7 +120,7 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx) ([]ty
 		return nil, nil
 	}
 	columns := make([]types.Column, 0)
-	rows := make(map[string]*connection.QueryItem)
+	row := make(map[string]*connection.QueryItem)
 	for _, table := range genCtx.ResultTables {
 		for _, column := range table.Columns {
 			asname := genCtx.createTmpColumn()
@@ -147,26 +132,36 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx) ([]ty
 			col := column.Clone()
 			col.AliasName = types.CIStr(asname)
 			columns = append(columns, col)
-			rows[asname] = genCtx.PivotRows[column.String()]
+			row[asname] = genCtx.PivotRows[column.String()]
 		}
 	}
-	return columns, rows
+	return columns, row
 }
 
-func (g *Generator) genResultSetNode(node *ast.Join, genCtx *GenCtx) {
+// TableRefsClause generates linear joins:
+//             Join
+//       Join        t4
+//   Join     t3
+// t1    t2
+func (g *Generator) TableRefsClause(genCtx *GenCtx) *ast.TableRefsClause {
+	clause := &ast.TableRefsClause{TableRefs: &ast.Join{
+		Left:  &ast.TableName{},
+		Right: &ast.TableName{},
+	}}
 	usedTables := genCtx.UsedTables
-	l := len(usedTables)
-	var left *ast.Join = node
-	// TODO: it works, but need to refactory
-	if l == 1 {
-		ts := ast.TableSource{}
-		tn := ast.TableName{}
-		tn.Name = usedTables[0].Name.ToModel()
-		ts.Source = &tn
-		node.Left = &ts
-		node.Right = nil
+	var node = clause.TableRefs
+	// TODO: it works, but need to refactor
+	if len(usedTables) == 1 {
+		clause.TableRefs = &ast.Join{
+			Left: &ast.TableSource{
+				Source: &ast.TableName{
+					Name: usedTables[0].Name.ToModel(),
+				},
+			},
+			Right: nil,
+		}
 	}
-	for i := l - 1; i >= 1; i-- {
+	for i := len(usedTables) - 1; i >= 1; i-- {
 		var tp ast.JoinType
 		if !genCtx.EnableLeftRightJoin {
 			tp = ast.CrossJoin
@@ -180,26 +175,24 @@ func (g *Generator) genResultSetNode(node *ast.Join, genCtx *GenCtx) {
 				tp = ast.CrossJoin
 			}
 		}
-
-		ts := ast.TableSource{}
-		tn := ast.TableName{}
-		tn.Name = usedTables[i].Name.ToModel()
-		ts.Source = &tn
-		if i > 1 {
-			left.Tp = tp
-			left.Right = &ts
-			left.Left = &ast.Join{}
-			left = left.Left.(*ast.Join)
+		node.Right = &ast.TableSource{
+			Source: &ast.TableName{
+				Name: usedTables[i].Name.ToModel(),
+			},
+		}
+		node.Tp = tp
+		if i == 1 {
+			node.Left = &ast.TableSource{
+				Source: &ast.TableName{
+					Name: usedTables[i-1].Name.ToModel(),
+				},
+			}
 		} else {
-			left.Tp = tp
-			left.Right = &ts
-			ts2 := ast.TableSource{}
-			tn2 := ast.TableName{}
-			tn2.Name = usedTables[i-1].Name.ToModel()
-			ts2.Source = &tn2
-			left.Left = &ts2
+			node.Left = &ast.Join{}
+			node = node.Left.(*ast.Join)
 		}
 	}
+	return clause
 }
 
 func (g *Generator) tableHintsExpr(usedTables []types.Table) []*ast.TableOptimizerHint {
@@ -224,25 +217,23 @@ func (g *Generator) tableHintsExpr(usedTables []types.Table) []*ast.TableOptimiz
 }
 
 // NOTICE: not support multi-table update
-func (g *Generator) UpdateDMLStmt(tables []types.Table, currTable types.Table) (string, error) {
+func (g *Generator) UpdateStmt(tables []types.Table, currTable types.Table) (string, error) {
 	for _, t := range tables {
 		if t.Name.Eq(currTable.Name) {
-			goto GCTX_UPDATE
+			goto gCtxUpdate
 		}
 	}
 	tables = append(tables, currTable)
-GCTX_UPDATE:
+gCtxUpdate:
 	gCtx := NewGenCtx(tables, nil)
 	gCtx.IsInUpdateDeleteStmt = true
 	gCtx.EnableLeftRightJoin = false
 	node := &ast.UpdateStmt{
-		Where:     g.WhereClauseAst(gCtx, 2),
+		Where:     g.ConditionClause(gCtx, 2),
 		IgnoreErr: true,
-		TableRefs: &ast.TableRefsClause{TableRefs: &ast.Join{}},
+		TableRefs: g.TableRefsClause(gCtx),
 		List:      make([]*ast.Assignment, 0),
 	}
-	g.genResultSetNode(node.TableRefs.TableRefs, gCtx)
-
 	// remove id col
 	tempColumns := make(types.Columns, 0)
 	for _, c := range currTable.Columns {
@@ -280,28 +271,27 @@ GCTX_UPDATE:
 }
 
 // NOTICE: not support multi-table delete
-func (g *Generator) DeleteDMLStmt(tables []types.Table, currTable types.Table) (string, error) {
+func (g *Generator) DeleteStmt(tables []types.Table, currTable types.Table) (string, error) {
 	for _, t := range tables {
 		if t.Name.Eq(currTable.Name) {
-			goto GCTX_DELETE
+			goto gCtxDelete
 		}
 	}
 	tables = append(tables, currTable)
-GCTX_DELETE:
+gCtxDelete:
 	gCtx := NewGenCtx(tables, nil)
 	gCtx.IsInUpdateDeleteStmt = true
 	gCtx.EnableLeftRightJoin = false
 	node := &ast.DeleteStmt{
-		Where:        g.WhereClauseAst(gCtx, 2),
+		Where:        g.ConditionClause(gCtx, 2),
 		IgnoreErr:    true,
 		IsMultiTable: true,
 		BeforeFrom:   true,
-		TableRefs:    &ast.TableRefsClause{TableRefs: &ast.Join{}},
+		TableRefs:    g.TableRefsClause(gCtx),
 		Tables: &ast.DeleteTableList{
 			Tables: []*ast.TableName{{Name: currTable.Name.ToModel()}},
 		},
 	}
-	g.genResultSetNode(node.TableRefs.TableRefs, gCtx)
 	// random some tables in UsedTables to be delete
 	// deletedTables := tables[:RdRange(1, int64(len(tables)))]
 	// fmt.Printf("%+v", node.Tables.Tables[0])
@@ -309,7 +299,6 @@ GCTX_DELETE:
 	// 	node.Tables.Tables = append(node.Tables.Tables, &ast.TableName{Name: t.Name.ToModel()})
 	// }
 	// TODO: add hint
-
 	if sql, err := BufferOut(node); err != nil {
 		return "", errors.Trace(err)
 	} else {
