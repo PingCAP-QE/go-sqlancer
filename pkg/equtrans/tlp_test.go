@@ -26,11 +26,53 @@ var (
 		},
 		{
 			tp:     ON_CONDITION,
+			origin: "SELECT * FROM t",
+			expr:   "t.c",
+			expect: "SELECT * FROM t",
+		},
+		{
+			tp:     HAVING,
+			origin: "SELECT * FROM t",
+			expr:   "t.c",
+			expect: "SELECT * FROM t",
+		},
+		{
+			tp:     WHERE,
+			origin: "SELECT * FROM t0 JOIN t1",
+			expr:   "t0.c=t1.c",
+			expect: "SELECT * FROM t0 JOIN t1 WHERE t0.c=t1.c IS TRUE " +
+				"UNION ALL SELECT * FROM t0 JOIN t1 WHERE t0.c=t1.c IS FALSE " +
+				"UNION ALL SELECT * FROM t0 JOIN t1 WHERE t0.c=t1.c IS NULL",
+		},
+		{
+			tp:     ON_CONDITION,
 			origin: "SELECT * FROM t0 JOIN t1",
 			expr:   "t0.c=t1.c",
 			expect: "SELECT * FROM t0 JOIN t1 ON t0.c=t1.c IS TRUE " +
 				"UNION ALL SELECT * FROM t0 JOIN t1 ON t0.c=t1.c IS FALSE " +
 				"UNION ALL SELECT * FROM t0 JOIN t1 ON t0.c=t1.c IS NULL",
+		},
+		{
+			tp:     HAVING,
+			origin: "SELECT * FROM t0 JOIN t1",
+			expr:   "t0.c=t1.c",
+			expect: "SELECT * FROM t0 JOIN t1",
+		},
+		{
+			tp:     WHERE,
+			origin: "SELECT * FROM t0 JOIN t1 GROUP BY t0.c",
+			expr:   "t0.c=t1.c",
+			expect: "SELECT * FROM t0 JOIN t1 WHERE t0.c=t1.c IS TRUE GROUP BY t0.c " +
+				"UNION ALL SELECT * FROM t0 JOIN t1 WHERE t0.c=t1.c IS FALSE GROUP BY t0.c " +
+				"UNION ALL SELECT * FROM t0 JOIN t1 WHERE t0.c=t1.c IS NULL GROUP BY t0.c",
+		},
+		{
+			tp:     ON_CONDITION,
+			origin: "SELECT * FROM t0 JOIN t1 GROUP BY t0.c",
+			expr:   "t0.c=t1.c",
+			expect: "SELECT * FROM t0 JOIN t1 ON t0.c=t1.c IS TRUE GROUP BY t0.c " +
+				"UNION ALL SELECT * FROM t0 JOIN t1 ON t0.c=t1.c IS FALSE GROUP BY t0.c " +
+				"UNION ALL SELECT * FROM t0 JOIN t1 ON t0.c=t1.c IS NULL GROUP BY t0.c",
 		},
 		{
 			tp:     HAVING,
