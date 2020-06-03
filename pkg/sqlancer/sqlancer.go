@@ -275,7 +275,7 @@ func (p *SQLancer) progress(ctx context.Context) {
 			log.L().Fatal("choose pivot row failed", zap.Error(err))
 		}
 		selectAST, selectSQL, columns, pivotRows, err := p.GenSelectStmt(pivotRows, usedTables)
-		p.withTxn(func() error {
+		p.withTxn(RdBool(), func() error {
 			resultRows, err := p.execSelect(selectSQL)
 			if err != nil {
 				log.L().Error("execSelect failed", zap.Error(err))
@@ -323,7 +323,7 @@ func (p *SQLancer) progress(ctx context.Context) {
 		if err != nil {
 			log.L().Error("generate NoREC SQL statement failed", zap.Error(err))
 		}
-		p.withTxn(func() error {
+		p.withTxn(RdBool(), func() error {
 			resultRows, err := p.execSelect(selectSQL)
 			if err != nil {
 				log.L().Error("execSelect failed", zap.Error(err))
@@ -343,10 +343,12 @@ func (p *SQLancer) progress(ctx context.Context) {
 	}
 }
 
-func (p *SQLancer) withTxn(do func() error) error {
+// if useExplicitTxn is set, a explicit transaction is used when doing action
+// otherwise, uses auto-commit
+func (p *SQLancer) withTxn(useExplicitTxn bool, action func() error) error {
 	var err error
 	// execute sql, ensure not null result set
-	if explicitTxn := RdBool(); explicitTxn {
+	if useExplicitTxn {
 		if err = p.executor.GetConn().Begin(); err != nil {
 			log.L().Error("begin txn failed", zap.Error(err))
 			return err
@@ -360,7 +362,7 @@ func (p *SQLancer) withTxn(do func() error) error {
 			log.L().Debug("commit txn success")
 		}()
 	}
-	return do()
+	return action()
 }
 
 func (p *SQLancer) addExprIndex() {

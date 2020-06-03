@@ -138,7 +138,11 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx) ([]ty
 	return columns, row
 }
 
-// TableRefsClause generates linear joins
+// TableRefsClause generates linear joins:
+//             Join
+//       Join        t4
+//   Join     t3
+// t1    t2
 func (g *Generator) TableRefsClause(genCtx *GenCtx) *ast.TableRefsClause {
 	clause := &ast.TableRefsClause{TableRefs: &ast.Join{
 		Left:  &ast.TableName{},
