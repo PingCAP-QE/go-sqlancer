@@ -5,19 +5,41 @@ import (
 	"github.com/pingcap/parser/opcode"
 )
 
+type TLPType = uint8
+
+const (
+	WHERE TLPType = iota
+	ON_CONDITION
+	HAVING
+)
+
 type TLPTrans struct {
 	Expr ast.ExprNode
+	Tp   TLPType
 }
 
 func (t *TLPTrans) Trans(stmt *ast.SelectStmt) ast.ResultSetNode {
+	if t.Expr == nil {
+		return stmt
+	}
+
 	var selects []*ast.SelectStmt
 
-	if stmt.GroupBy != nil {
-		selects = t.transGroupBy(stmt)
-	} else if stmt.From != nil && stmt.From.TableRefs != nil && stmt.From.TableRefs.Right != nil {
-		selects = t.transJoin(stmt)
-	} else {
+	switch t.Tp {
+	case WHERE:
 		selects = t.transWhere(stmt)
+	case ON_CONDITION:
+		if stmt.From != nil && stmt.From.TableRefs != nil && stmt.From.TableRefs.Right != nil {
+			selects = t.transOnCondition(stmt)
+		} else {
+			return stmt
+		}
+	case HAVING:
+		if stmt.GroupBy != nil {
+			selects = t.transHaving(stmt)
+		} else {
+			return stmt
+		}
 	}
 
 	for i, selectStmt := range selects {
@@ -32,30 +54,34 @@ func (t *TLPTrans) Trans(stmt *ast.SelectStmt) ast.ResultSetNode {
 		}}
 }
 
-func (t *TLPTrans) transGroupBy(stmt *ast.SelectStmt) []*ast.SelectStmt {
+func (t *TLPTrans) transHaving(stmt *ast.SelectStmt) []*ast.SelectStmt {
 	selects := make([]*ast.SelectStmt, 0, 3)
 	for _, expr := range partition(t.Expr) {
-		selectStmt := &*stmt
+		selectStmt := *stmt
 		if selectStmt.Having == nil {
 			selectStmt.Having = &ast.HavingClause{Expr: expr}
 		} else {
 			selectStmt.Having = &ast.HavingClause{Expr: &ast.BinaryOperationExpr{Op: opcode.And, L: stmt.Having.Expr, R: expr}}
 		}
-		selects = append(selects, selectStmt)
+		selects = append(selects, &selectStmt)
 	}
 	return selects
 }
 
-func (t *TLPTrans) transJoin(stmt *ast.SelectStmt) []*ast.SelectStmt {
+func (t *TLPTrans) transOnCondition(stmt *ast.SelectStmt) []*ast.SelectStmt {
 	selects := make([]*ast.SelectStmt, 0, 3)
 	for _, expr := range partition(t.Expr) {
-		selectStmt := &*stmt
+		selectStmt := *stmt
+		tableRefs := *stmt.From.TableRefs
+		selectStmt.From = &ast.TableRefsClause{
+			TableRefs: &tableRefs,
+		}
 		if selectStmt.From.TableRefs.On == nil {
 			selectStmt.From.TableRefs.On = &ast.OnCondition{Expr: expr}
 		} else {
 			selectStmt.From.TableRefs.On = &ast.OnCondition{Expr: &ast.BinaryOperationExpr{Op: opcode.And, L: stmt.From.TableRefs.On.Expr, R: expr}}
 		}
-		selects = append(selects, selectStmt)
+		selects = append(selects, &selectStmt)
 	}
 	return selects
 }
