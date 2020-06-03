@@ -63,20 +63,20 @@ func (t *TLPTrans) transJoin(stmt *ast.SelectStmt) []*ast.SelectStmt {
 func (t *TLPTrans) transWhere(stmt *ast.SelectStmt) []*ast.SelectStmt {
 	selects := make([]*ast.SelectStmt, 0, 3)
 	for _, expr := range partition(t.Expr) {
-		selectStmt := &*stmt
+		selectStmt := *stmt
 		if selectStmt.Where == nil {
 			selectStmt.Where = expr
 		} else {
 			selectStmt.Where = &ast.BinaryOperationExpr{Op: opcode.And, L: stmt.Where, R: expr}
 		}
-		selects = append(selects, selectStmt)
+		selects = append(selects, &selectStmt)
 	}
 	return selects
 }
 
 func partition(expr ast.ExprNode) []ast.ExprNode {
 	isFalse := &ast.IsTruthExpr{Expr: expr}
-	isTrue := &*isFalse
+	isTrue := *isFalse
 	isTrue.True = 1
-	return []ast.ExprNode{isTrue, isFalse, &ast.IsNullExpr{Expr: expr}}
+	return []ast.ExprNode{&isTrue, isFalse, &ast.IsNullExpr{Expr: expr}}
 }
