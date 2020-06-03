@@ -1,19 +1,47 @@
-# go-sqlancer
+# Go-sqlancer
 
 Inspired by Manuel Rigger's paper [Testing Database Engines via Pivoted Query Synthesis](https://arxiv.org/pdf/2001.04174.pdf)
 
-## Quick start
+## Quickstart
 
 ```bash
 make
 bin/go-sqlancer -dsn "root:@tcp(127.0.0.1:4000)/"
 ```
 
+And other flags you can set:
+
+```bash
+Usage of ./bin/go-sqlancer:
+  -depth int
+        sql depth (default 1)
+  -dsn string
+        dsn of target db for testing
+  -duration duration
+        fuzz duration (default 5h0m0s)
+  -expr-index
+        enable create expression index
+  -hint
+        enable sql hint for TiDB
+  -log-level string
+        set log level: info, warn, error, debug [default: info] (default "info")
+  -mode string
+        use NoRec or PQS method or both, split by vertical bar (default "pqs|norec")
+  -silent
+        silent when verify failed
+  -view int
+        count of views to be created (default 10)
+```
+
+## Approaches
+
+Go-sqlancer has supported PQS and NoREC, TLP is WIP. You can use `-mode pqs` or `-mode norec` to specify the testing approach.
+
 ## Supported Statement
 
-### Expression
+### Functions & Operators
 
-> XOR, AND, OR, NOT, GT, LT, NE, EQ, GE, LE etc.
+> XOR, AND, OR, NOT, GT, LT, NE, EQ, GE, LE, IF, CASE, IN, BETWEEN, etc.
 
 * https://github.com/pingcap/tidb/issues/16716
 
@@ -155,12 +183,6 @@ tidb> SELECT * from t;
 - [ ] inl_hash_join
 - [ ] inl_merge_join
 
-## Issues
+## Issues found by go-sqlancer
 
-- https://github.com/pingcap/tidb/issues/16716
-- https://github.com/pingcap/tidb/issues/16679
-- https://github.com/pingcap/tidb/issues/16599
-- https://github.com/pingcap/tidb/issues/16677
-- https://github.com/pingcap/tidb/issues/16788
-- https://github.com/pingcap/tidb/issues/16896
-- https://github.com/tidb-challenge-program/bug-hunting-issue/issues/64
+[Fuzz Issues](https://github.com/orgs/pingcap/projects/16)
