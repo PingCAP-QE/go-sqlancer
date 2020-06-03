@@ -6,7 +6,7 @@ import (
 	"github.com/pingcap/parser/model"
 )
 
-func (g *Generator) genJoin(node *ast.Join, genCtx *GenCtx) {
+func (g *Generator) walkTableRefs(node *ast.Join, genCtx *GenCtx) {
 	if node.Right == nil {
 		if node, ok := node.Left.(*ast.TableSource); ok {
 			if tn, ok := node.Source.(*ast.TableName); ok {
@@ -26,18 +26,16 @@ func (g *Generator) genJoin(node *ast.Join, genCtx *GenCtx) {
 		)
 		switch node := node.Left.(type) {
 		case *ast.Join:
-			g.genJoin(node, genCtx)
+			g.walkTableRefs(node, genCtx)
 			leftTables = genCtx.ResultTables
 		case *ast.TableSource:
-			{
-				if tn, ok := node.Source.(*ast.TableName); ok {
-					if table := genCtx.findUsedTableByName(tn.Name.L); table != nil {
-						tmpTable := genCtx.createTmpTable()
-						node.AsName = model.NewCIStr(tmpTable)
-						leftTables = []types.Table{table.Rename(tmpTable)}
-						genCtx.TableAlias[table.Name.String()] = tmpTable
-						break
-					}
+			if tn, ok := node.Source.(*ast.TableName); ok {
+				if table := genCtx.findUsedTableByName(tn.Name.L); table != nil {
+					tmpTable := genCtx.createTmpTable()
+					node.AsName = model.NewCIStr(tmpTable)
+					leftTables = []types.Table{table.Rename(tmpTable)}
+					genCtx.TableAlias[table.Name.String()] = tmpTable
+					break
 				}
 			}
 		default:
@@ -62,34 +60,9 @@ func (g *Generator) genJoin(node *ast.Join, genCtx *GenCtx) {
 		// for _, table := range genCtx.ResultTables {
 		// 	fmt.Println(table.Name, table.AliasName)
 		// }
-		node.On.Expr = g.WhereClauseAst(genCtx, 1)
+		node.On.Expr = g.ConditionClause(genCtx, 1)
 		return
 	}
 
 	panic("unreachable")
 }
-
-// func (g *Generator) RectifyJoin(node *ast.Join, genCtx *GenCtx) {
-// 	if node.Right == nil {
-// 		if node, ok := node.Left.(*ast.TableSource); ok {
-// 			if tn, ok := node.Source.(*ast.TableName); ok {
-// 				for _, table := range genCtx.UsedTables {
-// 					if table.Name.EqModel(tn.Name) {
-// 						return
-// 					}
-// 				}
-// 			}
-// 		}
-// 		panic("unreachable")
-// 	}
-
-// 	if _, ok := node.Right.(*ast.TableSource); ok {
-// 		node.On.Expr = g.RectifyCondition(node.On.Expr, genCtx)
-// 		if node, ok := node.Left.(*ast.Join); ok {
-// 			g.RectifyJoin(node, genCtx)
-// 		}
-// 		return
-// 	}
-
-// 	panic("unreachable")
-// }
