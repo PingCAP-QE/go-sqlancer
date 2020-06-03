@@ -44,5 +44,14 @@ func TransTest(t *testing.T, parser *parser.Parser, testCase TestCase, transform
 }
 
 func TestTLPTrans(t *testing.T) {
-	Trans([]Transformer{NoRECTrans}, new(ast.SelectStmt), 1)
+	parser := parser.New()
+	for _, testCase := range TLPTestCases {
+		exprNode, warns, err := parseExpr(parser, testCase.expr)
+		assert.Nil(t, err)
+		assert.Empty(t, warns)
+		tlpTrans := &TLPTrans{Expr: exprNode, Tp: testCase.tp}
+		TransTest(t, parser, testCase.TestCase, (TransformFunc)(func(stmt *ast.SelectStmt) ast.ResultSetNode {
+			return Trans([]Transformer{tlpTrans}, stmt, 1)[0]
+		}))
+	}
 }
