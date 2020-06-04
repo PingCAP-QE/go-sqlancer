@@ -13,7 +13,6 @@ import (
 	"github.com/juju/errors"
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/model"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
@@ -584,91 +583,6 @@ func (p *SQLancer) GenNormalSelectStmt() (*ast.SelectStmt, string, *generator.Ge
 
 	selectAST, selectSQL, _, _, err := p.Generator.SelectStmt(genCtx, p.conf.Depth)
 	return selectAST, selectSQL, genCtx, err
-}
-
-func (p *SQLancer) GenNoRecNormalSelectStmt() (*ast.SelectStmt, string, error) {
-	genCtx := generator.NewGenCtx(p.randTables(), nil)
-	genCtx.IsNoRECMode = true
-
-	selectAST, selectSQL, _, _, err := p.Generator.SelectStmt(genCtx, p.conf.Depth)
-	return selectAST, selectSQL, err
-}
-
-func (p *SQLancer) GenNoRecSelectStmtNoOpt(node *ast.SelectStmt) (*ast.SelectStmt, string, error) {
-	sum := &ast.SelectField{
-		Expr: &ast.AggregateFuncExpr{
-			F: "sum",
-			Args: []ast.ExprNode{
-				&ast.ColumnNameExpr{
-					Name: &ast.ColumnName{
-						Name: model.NewCIStr(noRECTmpColName),
-					},
-				},
-			},
-		},
-	}
-	node.Fields.Fields = []*ast.SelectField{
-		&ast.SelectField{
-			Expr:   node.Where,
-			AsName: model.NewCIStr(noRECTmpColName),
-		},
-	}
-	node.Where = nil
-	// clear sql hint
-	node.TableHints = make([]*ast.TableOptimizerHint, 0)
-	wrapNode := &ast.SelectStmt{
-		SelectStmtOpts: &ast.SelectStmtOpts{
-			SQLCache: true,
-		},
-		Fields: &ast.FieldList{
-			Fields: []*ast.SelectField{
-				sum,
-			},
-		},
-		From: &ast.TableRefsClause{
-			TableRefs: &ast.Join{
-				Left: &ast.TableSource{
-					AsName: model.NewCIStr(noRECTmpTableName),
-					Source: node,
-				},
-			},
-		},
-	}
-	sql, err := BufferOut(wrapNode)
-	if err != nil {
-		return nil, "", err
-	}
-	return wrapNode, sql, nil
-}
-
-func (p *SQLancer) verifyNoREC(node *ast.SelectStmt, rows [][]*connection.QueryItem) bool {
-	_, noOptSql, err := p.GenNoRecSelectStmtNoOpt(node)
-	if err != nil {
-		panic(fmt.Sprintf("generate no opt SQL failed err:%+v", err))
-	}
-	resultRows, err := p.execSelect(noOptSql)
-	if err != nil {
-		panic(fmt.Sprintf("no opt sql executes failed: %+v", err))
-	}
-	rawLeft := rows[0][0].ValString
-	if rawLeft == "NULL" || rawLeft == "" {
-		rawLeft = "0"
-	}
-	rawRight := resultRows[0][0].ValString
-	if rawRight == "NULL" || rawRight == "" {
-		rawRight = "0"
-	}
-	fmt.Printf("rows: %+v resultRows: %+v\n", rawLeft, rawRight)
-	left, err := strconv.ParseUint(rawLeft, 10, 64)
-	if err != nil {
-		panic("rows transform to int64 failed： " + rows[0][0].ValString)
-	}
-	right, err := strconv.ParseUint(rawRight, 10, 64)
-	if err != nil {
-		panic("resultRows transform to int64 failed： " + resultRows[0][0].ValString)
-	}
-
-	return right == left
 }
 
 func (p *SQLancer) checkResultSet(set [][][]*connection.QueryItem, ignoreSort bool) bool {

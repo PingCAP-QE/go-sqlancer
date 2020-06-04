@@ -85,7 +85,6 @@ func loadConfig() {
 		if len(*mode) == 0 {
 			panic("empty mode param set")
 		}
-		conf.EnableNoRECMode, conf.EnablePQSMode = false, false
 		approaches := strings.Split(*mode, "|")
 		hasSet := false
 		for _, i := range approaches {

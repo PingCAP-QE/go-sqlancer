@@ -18,7 +18,7 @@ const (
 /** transform examples:
  * select A from B join C on D where E
  *     => select count(*) from B join C on D where E
- *     => select sum(c_0) from (select (E is true) as c_0 from B join C on D) as t_0
+ *     => select sum(t_0.c_0) from (select (E is true) as c_0 from B join C on D) as t_0
  */
 var NoREC TransformFunc = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
 	resultSetNodes := nodeSet[:]
