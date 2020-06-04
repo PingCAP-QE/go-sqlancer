@@ -319,7 +319,7 @@ func (p *SQLancer) progress(ctx context.Context) {
 			return nil
 		})
 	case modeNoREC:
-		selectAst, _, genCtx, err := p.GenNormalSelectStmt()
+		selectAst, _, genCtx, err := p.GenSelectStmt()
 		if err != nil {
 			log.L().Error("generate normal SQL statement failed", zap.Error(err))
 		}
@@ -577,7 +577,7 @@ func (p *SQLancer) refreshDatabase(ctx context.Context) {
 	p.setUpDB(ctx)
 }
 
-func (p *SQLancer) GenNormalSelectStmt() (*ast.SelectStmt, string, *generator.GenCtx, error) {
+func (p *SQLancer) GenSelectStmt() (*ast.SelectStmt, string, *generator.GenCtx, error) {
 	genCtx := generator.NewGenCtx(p.randTables(), nil)
 	genCtx.IsNormalMode = true
 
