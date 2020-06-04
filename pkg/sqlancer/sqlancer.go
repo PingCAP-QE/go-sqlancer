@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
+	"github.com/chaos-mesh/go-sqlancer/pkg/equtrans"
 	"github.com/chaos-mesh/go-sqlancer/pkg/executor"
 	"github.com/chaos-mesh/go-sqlancer/pkg/generator"
 	"github.com/chaos-mesh/go-sqlancer/pkg/knownbugs"
@@ -143,7 +144,7 @@ func (p *SQLancer) createSchema(ctx context.Context) {
 	for i := 0; i < r.Intn(10); i++ {
 		sql, err := p.executor.GenerateDDLCreateIndex()
 		if err != nil {
-			fmt.Println(err)
+			log.L().Error("create index error", zap.Error(err))
 		}
 		err = p.executor.Exec(sql.SQLStmt)
 		if err != nil {
@@ -274,7 +275,7 @@ func (p *SQLancer) progress(ctx context.Context) {
 		if err != nil {
 			log.L().Fatal("choose pivot row failed", zap.Error(err))
 		}
-		selectAST, selectSQL, columns, pivotRows, err := p.GenSelectStmt(pivotRows, usedTables)
+		selectAST, selectSQL, columns, pivotRows, err := p.GenPQSSelectStmt(pivotRows, usedTables)
 		p.withTxn(RdBool(), func() error {
 			resultRows, err := p.execSelect(selectSQL)
 			if err != nil {
@@ -319,23 +320,52 @@ func (p *SQLancer) progress(ctx context.Context) {
 			return nil
 		})
 	case modeNoREC:
-		selectAst, selectSQL, err := p.GenNoRecNormalSelectStmt()
+		selectAst, _, genCtx, err := p.GenNormalSelectStmt()
 		if err != nil {
-			log.L().Error("generate NoREC SQL statement failed", zap.Error(err))
+			log.L().Error("generate normal SQL statement failed", zap.Error(err))
 		}
 		p.withTxn(RdBool(), func() error {
-			resultRows, err := p.execSelect(selectSQL)
-			if err != nil {
-				log.L().Error("execSelect failed", zap.Error(err))
-				return err
-			}
-			correct := p.verifyNoREC(selectAst, resultRows)
-			if !correct {
-				if !p.conf.Silent {
-					log.L().Fatal("data verified failed")
+			nodesGroup := equtrans.Trans([]equtrans.Transformer{
+				equtrans.NoREC,
+				&equtrans.TLPTrans{
+					Expr: &ast.ParenthesesExpr{Expr: p.ConditionClause(genCtx, 2)},
+					Tp:   equtrans.WHERE,
+				},
+			}, selectAst, 3)
+
+			for _, nodesArr := range nodesGroup {
+				if len(nodesArr) < 2 {
+					sql, _ := BufferOut(selectAst)
+					log.L().Warn("no enough sqls were generated", zap.String("error sql", sql), zap.Int("node length", len(nodesArr)))
+					continue
 				}
+
+				sqlInOneGroup := make([]string, 0)
+				resultSet := make([][][]*connection.QueryItem, 0)
+				for _, node := range nodesArr {
+					sql, err := BufferOut(node)
+					if err != nil {
+						log.L().Error("err on restoring", zap.Error(err))
+					} else {
+						resultRows, err := p.execSelect(sql)
+						log.L().Warn(sql)
+						if err != nil {
+							log.L().Error("execSelect failed", zap.Error(err))
+							return err
+						}
+						resultSet = append(resultSet, resultRows)
+					}
+					sqlInOneGroup = append(sqlInOneGroup, sql)
+				}
+				correct := p.checkResultSet(resultSet, true)
+				if !correct {
+					log.L().Error("last round SQLs", zap.Strings("", sqlInOneGroup))
+					if !p.conf.Silent {
+						log.L().Fatal("data verified failed")
+					}
+				}
+				log.L().Info("check finished", zap.String("mode", "NoREC"), zap.Int("batch", p.batch), zap.Int("round", p.roundInBatch), zap.Bool("result", correct))
 			}
-			log.L().Info("check finished", zap.String("mode", "NoREC"), zap.Int("batch", p.batch), zap.Int("round", p.roundInBatch), zap.Bool("result", correct))
 			return nil
 		})
 	default:
@@ -466,7 +496,7 @@ func (p *SQLancer) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table
 	return result, reallyUsed, nil
 }
 
-func (p *SQLancer) GenSelectStmt(pivotRows map[string]*connection.QueryItem,
+func (p *SQLancer) GenPQSSelectStmt(pivotRows map[string]*connection.QueryItem,
 	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, error) {
 	genCtx := generator.NewGenCtx(usedTables, pivotRows)
 	return p.Generator.SelectStmt(genCtx, p.conf.Depth)
@@ -546,6 +576,14 @@ func (p *SQLancer) refreshDatabase(ctx context.Context) {
 	}()
 	log.L().Debug("refresh database")
 	p.setUpDB(ctx)
+}
+
+func (p *SQLancer) GenNormalSelectStmt() (*ast.SelectStmt, string, *generator.GenCtx, error) {
+	genCtx := generator.NewGenCtx(p.randTables(), nil)
+	genCtx.IsNormalMode = true
+
+	selectAST, selectSQL, _, _, err := p.Generator.SelectStmt(genCtx, p.conf.Depth)
+	return selectAST, selectSQL, genCtx, err
 }
 
 func (p *SQLancer) GenNoRecNormalSelectStmt() (*ast.SelectStmt, string, error) {
@@ -631,4 +669,21 @@ func (p *SQLancer) verifyNoREC(node *ast.SelectStmt, rows [][]*connection.QueryI
 	}
 
 	return right == left
+}
+
+func (p *SQLancer) checkResultSet(set [][][]*connection.QueryItem, ignoreSort bool) bool {
+	if len(set) < 2 {
+		return true
+	}
+
+	// TODO: now only compare result rows number
+	// should support to compare rows' order
+
+	length := len(set[0])
+	for _, rows := range set {
+		if len(rows) != length {
+			return false
+		}
+	}
+	return true
 }

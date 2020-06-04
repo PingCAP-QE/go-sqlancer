@@ -7,45 +7,30 @@ import (
 
 type (
 	Transformer interface {
-		Trans(stmt *ast.SelectStmt) ast.ResultSetNode
+		Trans([][]ast.ResultSetNode) [][]ast.ResultSetNode
 	}
 
-	TransformFunc func(stmt *ast.SelectStmt) ast.ResultSetNode
+	TransformFunc func([][]ast.ResultSetNode) [][]ast.ResultSetNode
 )
 
-func (t TransformFunc) Trans(stmt *ast.SelectStmt) ast.ResultSetNode {
-	return t(stmt)
+func (t TransformFunc) Trans(stmts [][]ast.ResultSetNode) [][]ast.ResultSetNode {
+	return t(stmts)
 }
 
-func Trans(transformers []Transformer, stmt *ast.SelectStmt, Depth int) []ast.ResultSetNode {
+func Trans(transformers []Transformer, stmt ast.ResultSetNode, Depth int) [][]ast.ResultSetNode {
 	var random = func() Transformer {
 		return transformers[util.Rd(len(transformers))]
 	}
 
-	if Depth == 1 {
-		return []ast.ResultSetNode{random().Trans(stmt)}
-	}
+	results := [][]ast.ResultSetNode{{stmt}}
+	// if Depth == 1 {
+	// 	random().Trans(results)
+	// 	return results
+	// }
 
-	resultSets := make([]ast.ResultSetNode, 0, Depth+1)
 	for i := 0; i < Depth; i++ {
-		transformer := random()
-		resultSets = append(resultSets, transformer.Trans(stmt))
+		results = random().Trans(results)
 	}
-	resultSets = append(resultSets, union(resultSets))
-	return resultSets
-}
-
-func union(nodes []ast.ResultSetNode) *ast.UnionStmt {
-	selects := make([]*ast.SelectStmt, 0)
-	for _, node := range nodes {
-		switch stmt := node.(type) {
-		case *ast.SelectStmt:
-			selects = append(selects, stmt)
-		case *ast.UnionStmt:
-			if stmt.SelectList != nil && stmt.SelectList.Selects != nil {
-				selects = append(selects, stmt.SelectList.Selects...)
-			}
-		}
-	}
-	return &ast.UnionStmt{SelectList: &ast.UnionSelectList{Selects: selects}}
+	// resultSets = append(resultSets, union(resultSets))
+	return results
 }

@@ -2,12 +2,14 @@ package equtrans
 
 import "github.com/pingcap/parser/ast"
 
-// TODO: implement where-to-on Transformer
-func where2On(stmt *ast.SelectStmt) ast.ResultSetNode {
-	return stmt
-}
+var (
+	// TODO: implement where-to-on Transformer
+	Where2On TransformFunc = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
+		return nodeSet
+	}
 
-// TODO: implement on-to-where Transformer
-func on2Where(stmt *ast.SelectStmt) ast.ResultSetNode {
-	return stmt
-}
+	// TODO: implement on-to-where Transformer
+	On2Where TransformFunc = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
+		return nodeSet
+	}
+)
