@@ -15,8 +15,8 @@ type GenConfig struct {
 	IsInExprIndex        bool
 	EnableLeftRightJoin  bool
 	IsInUpdateDeleteStmt bool
+	IsPQSMode            bool
 	IsNoRECMode          bool
-	IsNormalMode         bool
 }
 
 type GenCtx struct {
@@ -49,7 +49,7 @@ func NewGenCtx(usedTables []types.Table, pivotRows map[string]*connection.QueryI
 			EnableLeftRightJoin:  true,
 			IsInUpdateDeleteStmt: false,
 			IsNoRECMode:          false,
-			IsNormalMode:         false,
+			IsPQSMode:            false,
 		},
 	}
 }

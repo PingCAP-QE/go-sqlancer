@@ -17,27 +17,24 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
-	"github.com/chaos-mesh/go-sqlancer/pkg/equtrans"
 	"github.com/chaos-mesh/go-sqlancer/pkg/executor"
 	"github.com/chaos-mesh/go-sqlancer/pkg/generator"
 	"github.com/chaos-mesh/go-sqlancer/pkg/knownbugs"
+	"github.com/chaos-mesh/go-sqlancer/pkg/transformer"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
-
-const noRECTmpTableName = "tmp_table"
-const noRECTmpColName = "tmp_col"
 
 var (
 	allColumnTypes = []string{"int", "float", "varchar"}
 )
 
-type checkMode = int
+type testingApproach = int
 
 const (
-	modePQS checkMode = iota
-	modeNoREC
-	modeTLP
+	approachPQS testingApproach = iota
+	approachNoREC
+	approachTLP
 )
 
 type SQLancer struct {
@@ -241,34 +238,37 @@ func (p *SQLancer) run(ctx context.Context) {
 				p.refreshDatabase(ctx)
 				p.batch++
 			}
-			p.progress(ctx)
+			p.progress()
 			p.roundInBatch = (p.roundInBatch + 1) % 100
 		}
 	}
 }
 
-func (p *SQLancer) progress(ctx context.Context) {
+func (p *SQLancer) progress() {
 	p.inWrite.RLock()
 	defer func() {
 		p.inWrite.RUnlock()
 	}()
-	var modes []checkMode
-	// Because we creates view just in time with process(we creates views on first TotalViewCount rounds)
+	var approaches []testingApproach
+	// Because we creates view just in time with process(we creates views on first ViewCount rounds)
 	// and current implementation depends on the PQS to ensures that there exists at lease one row in that view
-	// so we must choose modePQS in this scenario
-	if p.roundInBatch < p.conf.TotalViewCount {
-		modes = []checkMode{modePQS}
+	// so we must choose approachPQS in this scenario
+	if p.roundInBatch < p.conf.ViewCount {
+		approaches = []testingApproach{approachPQS}
 	} else {
-		if p.conf.EnableNoRECMode {
-			modes = append(modes, modeNoREC)
+		if p.conf.EnableNoRECApproach {
+			approaches = append(approaches, approachNoREC)
 		}
-		if p.conf.EnablePQSMode {
-			modes = append(modes, modePQS)
+		if p.conf.EnablePQSApproach {
+			approaches = append(approaches, approachPQS)
+		}
+		if p.conf.EnableTLPApproach {
+			approaches = append(approaches, approachTLP)
 		}
 	}
-	mode := modes[Rd(len(modes))]
-	switch mode {
-	case modePQS:
+	approach := approaches[Rd(len(approaches))]
+	switch approach {
+	case approachPQS:
 		// rand one pivot row for one table
 		pivotRows, usedTables, err := p.ChoosePivotedRow()
 		if err != nil {
@@ -299,46 +299,50 @@ func (p *SQLancer) progress(ctx context.Context) {
 				}
 				fmt.Printf("row:\n")
 				p.printPivotRows(pivotRows)
-				if p.roundInBatch < p.conf.TotalViewCount || p.conf.Silent {
+				if p.roundInBatch < p.conf.ViewCount || p.conf.Silent {
 					panic("data verified failed")
 				}
 				return nil
 			}
-			if p.roundInBatch <= p.conf.TotalViewCount {
+			if p.roundInBatch <= p.conf.ViewCount {
 				if err := p.executor.GetConn().CreateViewBySelect(fmt.Sprintf("view_%d", p.roundInBatch), selectSQL, len(resultRows), columns); err != nil {
 					log.L().Error("create view failed", zap.Error(err))
 				}
 			}
-			if p.roundInBatch == p.conf.TotalViewCount {
+			if p.roundInBatch == p.conf.ViewCount {
 				p.LoadSchema()
 				if err := p.executor.ReloadSchema(); err != nil {
 					panic(err)
 				}
 			}
-			log.L().Info("check finished", zap.String("mode", "PQS"), zap.Int("batch", p.batch), zap.Int("round", p.roundInBatch), zap.Bool("result", correct))
+			log.L().Info("check finished", zap.String("approach", "PQS"), zap.Int("batch", p.batch), zap.Int("round", p.roundInBatch), zap.Bool("result", correct))
 			return nil
 		})
-	case modeNoREC:
+	case approachNoREC, approachTLP:
 		selectAst, _, genCtx, err := p.GenSelectStmt()
 		if err != nil {
 			log.L().Error("generate normal SQL statement failed", zap.Error(err))
 		}
-		p.withTxn(RdBool(), func() error {
-			nodesGroup := equtrans.Trans([]equtrans.Transformer{
-				equtrans.NoREC,
-				&equtrans.TLPTrans{
+		var transformers []transformer.Transformer
+		if approach == approachNoREC {
+			transformers = []transformer.Transformer{transformer.NoREC}
+		} else {
+			transformers = []transformer.Transformer{
+				// approachTLP contains transformer.NoREC
+				transformer.NoREC,
+				&transformer.TLPTrans{
 					Expr: &ast.ParenthesesExpr{Expr: p.ConditionClause(genCtx, 2)},
-					Tp:   equtrans.WHERE,
-				},
-			}, selectAst, 3)
-
+					Tp:   transformer.WHERE,
+				}}
+		}
+		p.withTxn(RdBool(), func() error {
+			nodesGroup := transformer.Transform(transformers, selectAst, 3)
 			for _, nodesArr := range nodesGroup {
 				if len(nodesArr) < 2 {
 					sql, _ := BufferOut(selectAst)
 					log.L().Warn("no enough sqls were generated", zap.String("error sql", sql), zap.Int("node length", len(nodesArr)))
 					continue
 				}
-
 				sqlInOneGroup := make([]string, 0)
 				resultSet := make([][][]*connection.QueryItem, 0)
 				for _, node := range nodesArr {
@@ -363,12 +367,12 @@ func (p *SQLancer) progress(ctx context.Context) {
 						log.L().Fatal("data verified failed")
 					}
 				}
-				log.L().Info("check finished", zap.String("mode", "NoREC"), zap.Int("batch", p.batch), zap.Int("round", p.roundInBatch), zap.Bool("result", correct))
+				log.L().Info("check finished", zap.String("approach", "NoREC"), zap.Int("batch", p.batch), zap.Int("round", p.roundInBatch), zap.Bool("result", correct))
 			}
 			return nil
 		})
 	default:
-		log.L().Fatal("unknown check mode", zap.Int("mode", mode))
+		log.L().Fatal("unknown check approach", zap.Int("approach", approach))
 	}
 }
 
@@ -498,6 +502,8 @@ func (p *SQLancer) ChoosePivotedRow() (map[string]*connection.QueryItem, []Table
 func (p *SQLancer) GenPQSSelectStmt(pivotRows map[string]*connection.QueryItem,
 	usedTables []Table) (*ast.SelectStmt, string, []Column, map[string]*connection.QueryItem, error) {
 	genCtx := generator.NewGenCtx(usedTables, pivotRows)
+	genCtx.IsPQSMode = true
+
 	return p.Generator.SelectStmt(genCtx, p.conf.Depth)
 }
 
@@ -579,7 +585,7 @@ func (p *SQLancer) refreshDatabase(ctx context.Context) {
 
 func (p *SQLancer) GenSelectStmt() (*ast.SelectStmt, string, *generator.GenCtx, error) {
 	genCtx := generator.NewGenCtx(p.randTables(), nil)
-	genCtx.IsNormalMode = true
+	genCtx.IsPQSMode = false
 
 	selectAST, selectSQL, _, _, err := p.Generator.SelectStmt(genCtx, p.conf.Depth)
 	return selectAST, selectSQL, genCtx, err

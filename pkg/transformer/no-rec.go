@@ -1,4 +1,4 @@
-package equtrans
+package transformer
 
 import (
 	"github.com/pingcap/log"
@@ -15,12 +15,12 @@ const (
 	NOREC_TMP_COL_NAME   = "tmp_col"
 )
 
-/** transform examples:
+/** transformer examples:
  * select A from B join C on D where E
  *     => select count(*) from B join C on D where E
  *     => select sum(t_0.c_0) from (select (E is true) as c_0 from B join C on D) as t_0
  */
-var NoREC TransformFunc = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
+var NoREC TransformerSingleton = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
 	resultSetNodes := make([][]ast.ResultSetNode, 0)
 	copy(resultSetNodes, nodeSet)
 	for _, nodes := range nodeSet {

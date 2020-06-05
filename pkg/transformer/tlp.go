@@ -1,4 +1,4 @@
-package equtrans
+package transformer
 
 import (
 	"errors"
@@ -22,7 +22,7 @@ type TLPTrans struct {
 	Tp   TLPType
 }
 
-func (t *TLPTrans) Trans(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
+func (t *TLPTrans) Transform(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
 	resultSetNodes := nodeSet
 	for idx, nodes := range nodeSet {
 		nodeArr := nodes

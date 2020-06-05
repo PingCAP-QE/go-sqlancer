@@ -1,11 +1,11 @@
-package equtrans
+package transformer
 
 import (
 	"github.com/pingcap/parser/ast"
 )
 
 // TODO: implement union Transformer
-var UnionTrans TransformFunc = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
+var UnionTrans TransformerSingleton = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
 	return nodeSet
 }
 
