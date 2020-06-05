@@ -1,4 +1,4 @@
-package equtrans
+package transformer
 
 import (
 	"fmt"

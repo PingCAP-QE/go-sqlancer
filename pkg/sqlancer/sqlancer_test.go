@@ -49,7 +49,7 @@ func TestUpdateStmt(t *testing.T) {
 func TestNoRecNormal(t *testing.T) {
 	p, _ := NewSQLancer(NewConfig())
 	p.Tables = []types.Table{*helperMakeTable(), *helperMakeTable()}
-	s, sql, err := p.GenNoRecNormalSelectStmt(p.Tables)
+	s, sql, _, err := p.GenSelectStmt()
 	fmt.Println(s, sql)
 	assert.NoError(t, err)
 }
@@ -57,10 +57,10 @@ func TestNoRecNormal(t *testing.T) {
 func TestNoRecNoOpt(t *testing.T) {
 	p, _ := NewSQLancer(NewConfig())
 	p.Tables = []types.Table{*helperMakeTable(), *helperMakeTable()}
-	s, sql1, err := p.GenNoRecNormalSelectStmt(p.Tables)
+	s, sql1, _, err := p.GenSelectStmt()
 	fmt.Println(s, sql1)
 	assert.NoError(t, err)
-	s2, sql2, err := p.GenNoRecSelectStmtNoOpt(p.Tables, s)
+	s2, sql2, _, err := p.GenSelectStmt()
 	fmt.Println(s2, sql2)
 	assert.NoError(t, err)
 }

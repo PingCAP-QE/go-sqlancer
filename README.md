@@ -1,7 +1,10 @@
 # Go-sqlancer
 
-Inspired by Manuel Rigger's paper [Testing Database Engines via Pivoted Query Synthesis](https://arxiv.org/pdf/2001.04174.pdf)
-Now support PQS, NoREC and TLP
+Inspired by Manuel Rigger's paper [Testing Database Engines via Pivoted Query Synthesis](https://arxiv.org/pdf/2001.04174.pdf).
+
+## Testing approaches
+
+Go-sqlancer has supported Pivoted Query Synthesis (PQS), Non-optimizing Reference Engine Construction (NoREC) and Ternary Logic Partitioning (TLP). You can use `-mode` to specify the testing approach.
 
 ## Quickstart
 
@@ -13,30 +16,26 @@ bin/go-sqlancer -dsn "root:@tcp(127.0.0.1:4000)/"
 And other flags you can set:
 
 ```bash
-Usage of ./bin/go-sqlancer:
+Usage of go-sqlancer:
+  -approach string
+        use NoRec or PQS method or both, split by vertical bar (default "pqs|norec|tlp")
   -depth int
         sql depth (default 1)
   -dsn string
         dsn of target db for testing
   -duration duration
         fuzz duration (default 5h0m0s)
-  -expr-index
+  -enable-expr-idx
         enable create expression index
-  -hint
+  -enable-hint
         enable sql hint for TiDB
   -log-level string
         set log level: info, warn, error, debug [default: info] (default "info")
-  -mode string
-        use NoRec or PQS method or both, split by vertical bar (default "pqs|norec")
   -silent
         silent when verify failed
-  -view int
+  -view-count int
         count of views to be created (default 10)
 ```
-
-## Approaches
-
-Go-sqlancer has supported PQS and NoREC, TLP is WIP. You can use `-mode pqs` or `-mode norec` to specify the testing approach.
 
 ## Supported Statement
 

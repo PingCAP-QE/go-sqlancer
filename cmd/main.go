@@ -11,29 +11,17 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-const (
-	nmDSN        = "dsn"
-	nmViewCount  = "view"
-	nmDuration   = "duration"
-	nmSqlDepth   = "depth"
-	nmSilentMode = "silent"
-	nmLogLevel   = "log-level"
-	nmHint       = "hint"
-	nmExprIdx    = "expr-index"
-	nmMode       = "mode"
-)
-
 var (
 	conf      = sqlancer.NewConfig()
-	dsn       = flag.String(nmDSN, "", "dsn of target db for testing")
-	viewCount = flag.Int(nmViewCount, 10, "count of views to be created")
-	duration  = flag.Duration(nmDuration, 5*time.Hour, "fuzz duration")
-	depth     = flag.Int(nmSqlDepth, 1, "sql depth")
-	silent    = flag.Bool(nmSilentMode, false, "silent when verify failed")
-	logLevel  = flag.String(nmLogLevel, "info", "set log level: info, warn, error, debug [default: info]")
-	hint      = flag.Bool(nmHint, false, "enable sql hint for TiDB")
-	exprIdx   = flag.Bool(nmExprIdx, false, "enable create expression index")
-	mode      = flag.String(nmMode, "pqs|norec", "use NoRec or PQS method or both, split by vertical bar")
+	dsn       = flag.String("dsn", "", "dsn of target db for testing")
+	duration  = flag.Duration("duration", 5*time.Hour, "fuzz duration")
+	silent    = flag.Bool("silent", false, "silent when verify failed")
+	logLevel  = flag.String("log-level", "info", "set log level: info, warn, error, debug [default: info]")
+	mode      = flag.String("approach", "pqs|norec|tlp", "use NoRec or PQS method or both, split by vertical bar")
+	depth     = flag.Int("depth", 1, "sql depth")
+	viewCount = flag.Int("view-count", 10, "count of views to be created")
+	hint      = flag.Bool("enable-hint", false, "enable sql hint for TiDB")
+	exprIdx   = flag.Bool("enable-expr-idx", false, "enable create expression index")
 )
 
 func main() {
@@ -50,55 +38,32 @@ func main() {
 
 func loadConfig() {
 	flag.Parse()
-
-	actualFlags := make(map[string]bool)
-	flag.Visit(func(f *flag.Flag) {
-		actualFlags[f.Name] = true
-	})
-
-	if actualFlags[nmDSN] {
-		if err := conf.SetDSN(*dsn); err != nil {
-			panic(err)
-		}
-	} else {
-		panic("empty dsn")
+	if err := conf.SetDSN(*dsn); err != nil {
+		panic(err)
 	}
-	if actualFlags[nmViewCount] {
-		conf.TotalViewCount = *viewCount
+	conf.ViewCount = *viewCount
+	conf.Depth = *depth
+	conf.Silent = *silent
+	conf.LogLevel = *logLevel
+	conf.EnableHint = *hint
+	conf.EnableExprIndex = *exprIdx
+	if len(*mode) == 0 {
+		panic("empty mode param set")
 	}
-	if actualFlags[nmSqlDepth] {
-		conf.Depth = *depth
+	approaches := strings.Split(*mode, "|")
+	if len(approaches) == 0 {
+		panic("no testing approach is specified")
 	}
-	if actualFlags[nmSilentMode] {
-		conf.Silent = *silent
-	}
-	if actualFlags[nmLogLevel] {
-		conf.LogLevel = *logLevel
-	}
-	if actualFlags[nmHint] {
-		conf.EnableHint = *hint
-	}
-	if actualFlags[nmExprIdx] {
-		conf.EnableExprIndex = *exprIdx
-	}
-	if actualFlags[nmMode] {
-		if len(*mode) == 0 {
-			panic("empty mode param set")
-		}
-		approaches := strings.Split(*mode, "|")
-		hasSet := false
-		for _, i := range approaches {
-			if strings.ToLower(i) == "norec" {
-				conf.EnableNoRECMode = true
-				hasSet = true
-			}
-			if strings.ToLower(i) == "pqs" {
-				conf.EnablePQSMode = true
-				hasSet = true
-			}
-		}
-		if !hasSet {
-			panic("no valid mode param set")
+	for _, approach := range approaches {
+		switch strings.ToLower(approach) {
+		case "pqs":
+			conf.EnablePQSApproach = true
+		case "norec":
+			conf.EnableNoRECApproach = true
+		case "tlp":
+			conf.EnableTLPApproach = true
+		default:
+			panic(fmt.Sprintf("unknown testing approach: %s", approach))
 		}
 	}
 }
