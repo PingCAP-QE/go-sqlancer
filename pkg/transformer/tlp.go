@@ -2,7 +2,7 @@ package transformer
 
 import (
 	"errors"
-
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/opcode"
@@ -15,6 +15,10 @@ const (
 	WHERE TLPType = iota
 	ON_CONDITION
 	HAVING
+)
+
+var (
+	TLPTypes = []TLPType{WHERE, ON_CONDITION, HAVING}
 )
 
 type TLPTrans struct {
@@ -142,4 +146,8 @@ func partition(expr ast.ExprNode) []ast.ExprNode {
 	isTrue := *isFalse
 	isTrue.True = 1
 	return []ast.ExprNode{&isTrue, isFalse, &ast.IsNullExpr{Expr: expr}}
+}
+
+func RandTLPType() TLPType {
+	return TLPTypes[util.Rd(len(TLPTypes))]
 }

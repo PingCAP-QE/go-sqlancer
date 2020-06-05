@@ -332,7 +332,7 @@ func (p *SQLancer) progress() {
 				transformer.NoREC,
 				&transformer.TLPTrans{
 					Expr: &ast.ParenthesesExpr{Expr: p.ConditionClause(genCtx, 2)},
-					Tp:   transformer.WHERE,
+					Tp:   transformer.RandTLPType(),
 				}}
 		}
 		p.withTxn(RdBool(), func() error {
