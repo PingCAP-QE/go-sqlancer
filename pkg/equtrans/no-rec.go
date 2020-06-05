@@ -21,7 +21,8 @@ const (
  *     => select sum(t_0.c_0) from (select (E is true) as c_0 from B join C on D) as t_0
  */
 var NoREC TransformFunc = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
-	resultSetNodes := nodeSet[:]
+	resultSetNodes := make([][]ast.ResultSetNode, 0)
+	copy(resultSetNodes, nodeSet)
 	for _, nodes := range nodeSet {
 		nodeArr := make([]ast.ResultSetNode, 0)
 		for _, node := range nodes {
