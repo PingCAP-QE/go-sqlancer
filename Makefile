@@ -13,6 +13,9 @@ sqlancer:
 fmt:
 	go fmt ./...
 
+test:
+	go test ./...
+
 tidy:
 	@echo "go mod tidy"
 	GO111MODULE=on go mod tidy

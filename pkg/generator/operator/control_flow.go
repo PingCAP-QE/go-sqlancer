@@ -133,7 +133,7 @@ var (
 		}
 		return expr2, nil
 	}, func(argTyps ...uint64) (uint64, bool, error) {
-		if argTyps[0] != argTyps[1]{
+		if argTyps[0] != argTyps[1] {
 			return 0, false, errors.New("invalid type")
 		}
 		return argTyps[0], false, nil

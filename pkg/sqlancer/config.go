@@ -36,8 +36,8 @@ func NewConfig() *Config {
 		TotalViewCount:  10,
 		EnableHint:      false,
 		EnableExprIndex: false,
-		EnableNoRECMode: true,
-		EnablePQSMode:   true,
+		EnableNoRECMode: false,
+		EnablePQSMode:   false,
 	}
 }
 
