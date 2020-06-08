@@ -1,6 +1,6 @@
 # Go-sqlancer
 
-![Test](https://github.com/chaos-mesh/go-sqlancer/workflows/Test/badge.svg)
+[![Test](https://github.com/chaos-mesh/go-sqlancer/workflows/Test/badge.svg)](https://github.com/chaos-mesh/go-sqlancer/actions?query=workflow%3ATest)
 [![Go Report Card](https://goreportcard.com/badge/github.com/chaos-mesh/go-sqlancer)](https://goreportcard.com/report/github.com/chaos-mesh/go-sqlancer)
 
 Inspired by Manuel Rigger's paper [Testing Database Engines via Pivoted Query Synthesis](https://arxiv.org/pdf/2001.04174.pdf).
