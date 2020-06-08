@@ -2,9 +2,11 @@ package transformer
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/opcode"
 	"go.uber.org/zap"
 
@@ -20,7 +22,8 @@ const (
 )
 
 var (
-	TLPTypes = []TLPType{WHERE, ON_CONDITION, HAVING}
+	TLPTypes          = [...]TLPType{WHERE, ON_CONDITION, HAVING}
+	SelfComposableMap = map[string]bool{ast.AggFuncMax: true, ast.AggFuncMin: true, ast.AggFuncSum: true}
 )
 
 type TLPTrans struct {
@@ -91,10 +94,12 @@ func (t *TLPTrans) transOneStmt(stmt *ast.SelectStmt) (ast.ResultSetNode, error)
 		}
 	}
 
-	return &ast.UnionStmt{
+	// try aggregate transform
+	return tryAggTransform(stmt, &ast.UnionStmt{
 		SelectList: &ast.UnionSelectList{
 			Selects: selects,
-		}}, nil
+		}})
+
 }
 
 func (t *TLPTrans) transHaving(stmt *ast.SelectStmt) []*ast.SelectStmt {
@@ -152,4 +157,68 @@ func partition(expr ast.ExprNode) []ast.ExprNode {
 
 func RandTLPType() TLPType {
 	return TLPTypes[util.Rd(len(TLPTypes))]
+}
+
+func tryAggTransform(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) (ast.ResultSetNode, error) {
+	if selectStmt.Fields != nil && len(selectStmt.Fields.Fields) != 0 {
+		aggFns := make([]int, 0)
+		exprNames := make(map[string]bool)
+		selectFields := make([]*ast.SelectField, 0, len(selectStmt.Fields.Fields))
+		unionFields := make([]*ast.SelectField, 0, len(selectStmt.Fields.Fields))
+		for index, field := range selectStmt.Fields.Fields {
+			selectField, unionField := *field, *field
+			selectFields = append(selectFields, &selectField)
+			unionFields = append(unionFields, &unionField)
+			if !field.Auxiliary {
+				if field.AsName.String() != "" {
+					exprNames[field.AsName.String()] = true
+				}
+				if fn, ok := field.Expr.(*ast.AggregateFuncExpr); ok {
+					if SelfComposableMap[fn.F] && !fn.Distinct {
+						aggFns = append(aggFns, index)
+						continue
+					} else {
+						return nil, errors.New("only self-composable aggregation func is supported")
+					}
+				}
+			}
+		}
+
+		if len(aggFns) != 0 {
+			for _, index := range aggFns {
+				if unionFields[index].AsName.String() == "" {
+					name := chooseName(index, exprNames)
+					unionFields[index].AsName = model.NewCIStr(name)
+				}
+				selectFields[index].AsName = model.NewCIStr("")
+				selectFields[index].Expr.(*ast.AggregateFuncExpr).Args = []ast.ExprNode{
+					&ast.ColumnNameExpr{
+						Name: &ast.ColumnName{
+							Name: unionFields[index].AsName,
+						},
+					},
+				}
+			}
+			for _, stmt := range unionStmt.SelectList.Selects {
+				stmt.Fields = &ast.FieldList{Fields: unionFields}
+			}
+
+			return &ast.SelectStmt{
+				Fields: &ast.FieldList{Fields: selectFields},
+				From: &ast.TableRefsClause{TableRefs: &ast.Join{
+					Left: unionStmt,
+				}},
+			}, nil
+		}
+	}
+	return unionStmt, nil
+}
+
+func chooseName(index int, exprNames map[string]bool) string {
+	for i := 1; ; i++ {
+		name := fmt.Sprintf("c%d", i*index)
+		if !exprNames[name] {
+			return name
+		}
+	}
 }
