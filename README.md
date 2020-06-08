@@ -1,5 +1,7 @@
 # Go-sqlancer
 
+![Test](https://github.com/chaos-mesh/go-sqlancer/workflows/Test/badge.svg)
+
 Inspired by Manuel Rigger's paper [Testing Database Engines via Pivoted Query Synthesis](https://arxiv.org/pdf/2001.04174.pdf).
 
 ## Testing approaches
