@@ -48,13 +48,27 @@ var NoREC TransformerSingleton = func(nodeSet [][]ast.ResultSetNode) [][]ast.Res
 	return resultSetNodes
 }
 
-// TODO: use error to tell connot deal the node with NoREC
+type NoRECVisitor struct {
+	hasAggFn bool
+}
+
+func (v *NoRECVisitor) Enter(n ast.Node) (node ast.Node, skipChildren bool) {
+	if _, ok := n.(*ast.AggregateFuncExpr); ok {
+		v.hasAggFn = true
+	}
+	return n, v.hasAggFn
+}
+func (v *NoRECVisitor) Leave(n ast.Node) (node ast.Node, ok bool) {
+	return n, v.hasAggFn
+}
+
 func norec(node *ast.SelectStmt) ([]ast.ResultSetNode, error) {
 	if node.Fields != nil {
-		for _, field := range node.Fields.Fields {
-			if _, ok := field.Expr.(*ast.AggregateFuncExpr); ok {
-				return nil, errors.New("not support aggregation fn in result field")
-			}
+
+		v := &NoRECVisitor{}
+		node.Fields.Accept(v)
+		if v.hasAggFn {
+			return nil, errors.New("not support aggregation fn in result field")
 		}
 	}
 	results := make([]ast.ResultSetNode, 0)
