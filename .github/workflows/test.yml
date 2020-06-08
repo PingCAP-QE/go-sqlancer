@@ -13,9 +13,6 @@ jobs:
           go-version: ${{ matrix.go }} # The Go version to download (if necessary) and use.
       - run: go env
       - name: Build
-        with:
-          command: make
+        run: make
       - name: Test
-        with:
-          command: make
-          args: test
+        run: make test
