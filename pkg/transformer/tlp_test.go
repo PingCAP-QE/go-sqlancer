@@ -68,6 +68,16 @@ var (
 			},
 		},
 		{
+			// outer join is unsupported
+			tp:   ON_CONDITION,
+			expr: "t0.c=t1.c",
+			TestCase: TestCase{
+				fail:   true,
+				origin: "SELECT * FROM t0 RIGHT JOIN t1 ON true",
+				expect: "",
+			},
+		},
+		{
 			tp:   HAVING,
 			expr: "t0.c=t1.c",
 			TestCase: TestCase{
