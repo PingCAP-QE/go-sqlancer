@@ -1,9 +1,11 @@
 package sqlancer
 
 import (
+	"database/sql"
 	"fmt"
 	"testing"
 
+	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 	"github.com/stretchr/testify/assert"
@@ -63,4 +65,76 @@ func TestNoRecNoOpt(t *testing.T) {
 	s2, sql2, _, err := p.GenSelectStmt()
 	fmt.Println(s2, sql2)
 	assert.NoError(t, err)
+}
+
+func TestCheckResultSet(t *testing.T) {
+	// we cannot set type name out of package
+	intValType := &sql.ColumnType{}
+	// floatValType := &sql.ColumnType{}
+	stringValType := &sql.ColumnType{}
+
+	resultSet1 := [][]connection.QueryItems{
+		{
+			{
+				{
+					Null:      false,
+					ValType:   intValType,
+					ValString: "33",
+				}, {
+					Null:      true,
+					ValType:   intValType,
+					ValString: "22",
+				}, {
+					Null:      false,
+					ValType:   stringValType,
+					ValString: "-10",
+				},
+			},
+		}, {
+			{
+				{
+					Null:      false,
+					ValType:   intValType,
+					ValString: "33",
+				}, {
+					Null:      true,
+					ValType:   intValType,
+					ValString: "22",
+				}, {
+					Null:      false,
+					ValType:   stringValType,
+					ValString: "-10",
+				},
+			},
+		}, {
+			{
+				{
+					Null:      false,
+					ValType:   intValType,
+					ValString: "33",
+				}, {
+					Null:      true,
+					ValType:   intValType,
+					ValString: "22",
+				}, {
+					Null:      false,
+					ValType:   stringValType,
+					ValString: "-10",
+				},
+			},
+		},
+	}
+
+	assert.True(t, checkResultSet(resultSet1, true))
+	resultSet1[2][0] = append(resultSet1[2][0], &connection.QueryItem{
+		Null:      false,
+		ValType:   stringValType,
+		ValString: "ZZZZ",
+	})
+	assert.False(t, checkResultSet(resultSet1, true))
+	resultSet1[2][0] = resultSet1[2][0][:len(resultSet1[2][0])-1]
+	assert.True(t, checkResultSet(resultSet1, true))
+
+	resultSet1[1] = append(resultSet1[1], resultSet1[2][0])
+	assert.False(t, checkResultSet(resultSet1, true))
 }

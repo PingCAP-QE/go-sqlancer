@@ -1,6 +1,7 @@
 package transformer
 
 import (
+	"github.com/juju/errors"
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
@@ -21,7 +22,7 @@ const (
  *     => select sum(t_0.c_0) from (select (E is true) as c_0 from B join C on D) as t_0
  */
 var NoREC TransformerSingleton = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
-	resultSetNodes := make([][]ast.ResultSetNode, 0)
+	resultSetNodes := make([][]ast.ResultSetNode, len(nodeSet))
 	copy(resultSetNodes, nodeSet)
 	for _, nodes := range nodeSet {
 		nodeArr := make([]ast.ResultSetNode, 0)
@@ -49,6 +50,13 @@ var NoREC TransformerSingleton = func(nodeSet [][]ast.ResultSetNode) [][]ast.Res
 
 // TODO: use error to tell connot deal the node with NoREC
 func norec(node *ast.SelectStmt) ([]ast.ResultSetNode, error) {
+	if node.Fields != nil {
+		for _, field := range node.Fields.Fields {
+			if _, ok := field.Expr.(*ast.AggregateFuncExpr); ok {
+				return nil, errors.New("not support aggregation fn in result field")
+			}
+		}
+	}
 	results := make([]ast.ResultSetNode, 0)
 	// Is there a clone method available on ast.node?
 	p := *node
@@ -62,16 +70,11 @@ func norec(node *ast.SelectStmt) ([]ast.ResultSetNode, error) {
 	}
 	q.TableHints = nil
 	// drop all result fields and put count(*) into Fields
-	exprNode := &driver.ValueExpr{}
-	tp := types.NewFieldType(mysql.TypeLonglong)
-	tp.Flag = 128
-	exprNode.TexprNode.SetType(tp)
-	exprNode.Datum.SetInt64(1)
 	countField := ast.SelectField{
 		Expr: &ast.AggregateFuncExpr{
 			F: "count",
 			Args: []ast.ExprNode{
-				exprNode,
+				makeIntConstValue(1),
 			},
 		},
 	}
@@ -80,20 +83,26 @@ func norec(node *ast.SelectStmt) ([]ast.ResultSetNode, error) {
 
 	// use sum and subquery to avoid optimization
 	sum := &ast.SelectField{
-		Expr: &ast.AggregateFuncExpr{
-			F: "sum",
+		Expr: &ast.FuncCallExpr{
+			FnName: model.NewCIStr("IFNULL"),
 			Args: []ast.ExprNode{
-				&ast.ColumnNameExpr{
-					Name: &ast.ColumnName{
-						Name: model.NewCIStr(NOREC_TMP_COL_NAME),
+				&ast.AggregateFuncExpr{
+					F: "sum",
+					Args: []ast.ExprNode{
+						&ast.ColumnNameExpr{
+							Name: &ast.ColumnName{
+								Name: model.NewCIStr(NOREC_TMP_COL_NAME),
+							},
+						},
 					},
 				},
+				makeIntConstValue(0),
 			},
 		},
 	}
 	// avoid empty result set such as `SELECT FROM`
 	if q.Where == nil {
-		q.Where = exprNode
+		q.Where = makeIntConstValue(1)
 	} else {
 		// switch t := q.Where.(type) {
 		// case *ast.IsNullExpr:
@@ -141,4 +150,14 @@ func norec(node *ast.SelectStmt) ([]ast.ResultSetNode, error) {
 	}
 	results = append(results, wrapped)
 	return results, nil
+}
+
+func makeIntConstValue(i int64) *driver.ValueExpr {
+	exprNode := &driver.ValueExpr{}
+	tp := types.NewFieldType(mysql.TypeLonglong)
+	tp.Flag = 128
+	exprNode.TexprNode.SetType(tp)
+	exprNode.Datum.SetInt64(i)
+
+	return exprNode
 }

@@ -25,21 +25,21 @@ import (
 )
 
 // Select run select statement and return query result
-func (c *Connection) Select(stmt string, args ...interface{}) ([][]*QueryItem, error) {
+func (c *Connection) Select(stmt string, args ...interface{}) ([]QueryItems, error) {
 	start := time.Now()
 	rows, err := c.db.Query(stmt, args...)
 	if err != nil {
 		c.logSQL(stmt, time.Now().Sub(start), err)
-		return [][]*QueryItem{}, err
+		return []QueryItems{}, err
 	}
 
 	columnTypes, _ := rows.ColumnTypes()
-	var result [][]*QueryItem
+	var result []QueryItems
 
 	for rows.Next() {
 		var (
 			rowResultSets []interface{}
-			resultRow     []*QueryItem
+			resultRow     QueryItems
 		)
 		for range columnTypes {
 			rowResultSets = append(rowResultSets, new(interface{}))
