@@ -2,10 +2,13 @@ package transformer
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
 type TLPTestCase struct {
@@ -30,16 +33,18 @@ var (
 			tp:   ON_CONDITION,
 			expr: "t.c",
 			TestCase: TestCase{
+				fail:   true,
 				origin: "SELECT * FROM t",
-				expect: "SELECT * FROM t",
+				expect: "",
 			},
 		},
 		{
 			tp:   HAVING,
 			expr: "t.c",
 			TestCase: TestCase{
+				fail:   true,
 				origin: "SELECT * FROM t",
-				expect: "SELECT * FROM t",
+				expect: "",
 			},
 		},
 		{
@@ -66,8 +71,9 @@ var (
 			tp:   HAVING,
 			expr: "t0.c=t1.c",
 			TestCase: TestCase{
+				fail:   true,
 				origin: "SELECT * FROM t0 JOIN t1",
-				expect: "SELECT * FROM t0 JOIN t1",
+				expect: "",
 			},
 		},
 		{
@@ -108,7 +114,31 @@ func TLPTransTest(t *testing.T, parser *parser.Parser, testCase TLPTestCase) {
 	assert.Nil(t, err)
 	assert.Empty(t, warns)
 	tlpTrans := &TLPTrans{Expr: exprNode, Tp: testCase.tp}
-	TransTest(t, parser, testCase.TestCase, tlpTrans)
+	nodes, warns, err := parser.Parse(testCase.origin, "", "")
+	assert.Nil(t, err)
+	assert.Empty(t, warns)
+	assert.True(t, len(nodes) == 1)
+	selectStmt, ok := nodes[0].(*ast.SelectStmt)
+	assert.True(t, ok)
+	resultSetNodes := tlpTrans.Transform([][]ast.ResultSetNode{{selectStmt}})
+	assert.NotEmpty(t, resultSetNodes)
+
+	if testCase.fail {
+		assert.True(t, assert.True(t, len(resultSetNodes[0]) == 1))
+	} else {
+		assert.True(t, len(resultSetNodes[0]) >= 2)
+		output, err := util.BufferOut(resultSetNodes[0][1])
+		assert.Nil(t, err)
+
+		expectNodes, warns, err := parser.Parse(testCase.expect, "", "")
+		assert.Nil(t, err)
+		assert.Empty(t, warns)
+		assert.True(t, len(nodes) == 1)
+
+		expect, err := util.BufferOut(expectNodes[0])
+		assert.Nil(t, err)
+		assert.Equal(t, expect, output)
+	}
 }
 
 func TestTLPTrans_Trans(t *testing.T) {
