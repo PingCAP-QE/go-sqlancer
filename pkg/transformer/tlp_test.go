@@ -2,11 +2,13 @@ package transformer
 
 import (
 	"fmt"
-	"github.com/chaos-mesh/go-sqlancer/pkg/util"
+	"testing"
+
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
 type TLPTestCase struct {
