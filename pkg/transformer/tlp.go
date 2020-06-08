@@ -2,11 +2,13 @@ package transformer
 
 import (
 	"errors"
-	"github.com/chaos-mesh/go-sqlancer/pkg/util"
+
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/opcode"
 	"go.uber.org/zap"
+
+	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
 type TLPType = uint8
