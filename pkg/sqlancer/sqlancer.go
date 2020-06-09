@@ -270,12 +270,15 @@ func (p *SQLancer) progress() {
 	switch approach {
 	case approachPQS:
 		// rand one pivot row for one table
-		pivotRows, usedTables, err := p.ChoosePivotedRow()
+		rawPivotRows, usedTables, err := p.ChoosePivotedRow()
 		if err != nil {
 			log.L().Fatal("choose pivot row failed", zap.Error(err))
 		}
-		selectAST, selectSQL, columns, pivotRows, err := p.GenPQSSelectStmt(pivotRows, usedTables)
-		p.withTxn(RdBool(), func() error {
+		selectAST, selectSQL, columns, pivotRows, err := p.GenPQSSelectStmt(rawPivotRows, usedTables)
+		if err != nil {
+			log.L().Fatal("generate PQS statement error", zap.Error(err))
+		}
+		_ = p.withTxn(RdBool(), func() error {
 			resultRows, err := p.execSelect(selectSQL)
 			if err != nil {
 				log.L().Error("execSelect failed", zap.Error(err))
@@ -298,9 +301,9 @@ func (p *SQLancer) progress() {
 					return nil
 				}
 				fmt.Printf("row:\n")
-				p.printPivotRows(pivotRows)
+				p.printPivotRows(rawPivotRows)
 				if p.roundInBatch < p.conf.ViewCount || p.conf.Silent {
-					panic("data verified failed")
+					panic("PQS data verified failed")
 				}
 				return nil
 			}
@@ -344,14 +347,14 @@ func (p *SQLancer) progress() {
 					continue
 				}
 				sqlInOneGroup := make([]string, 0)
-				resultSet := make([][][]*connection.QueryItem, 0)
+				resultSet := make([][]connection.QueryItems, 0)
 				for _, node := range nodesArr {
 					sql, err := BufferOut(node)
 					if err != nil {
 						log.L().Error("err on restoring", zap.Error(err))
 					} else {
 						resultRows, err := p.execSelect(sql)
-						log.L().Warn(sql)
+						log.L().Debug(sql)
 						if err != nil {
 							log.L().Error("execSelect failed", zap.Error(err))
 							return err
@@ -360,11 +363,11 @@ func (p *SQLancer) progress() {
 					}
 					sqlInOneGroup = append(sqlInOneGroup, sql)
 				}
-				correct := p.checkResultSet(resultSet, true)
+				correct := checkResultSet(resultSet, true)
 				if !correct {
 					log.L().Error("last round SQLs", zap.Strings("", sqlInOneGroup))
 					if !p.conf.Silent {
-						log.L().Fatal("data verified failed")
+						log.L().Fatal("NoREC/TLP data verified failed")
 					}
 				}
 				log.L().Info("check finished", zap.String("approach", "NoREC"), zap.Int("batch", p.batch), zap.Int("round", p.roundInBatch), zap.Bool("result", correct))
@@ -521,12 +524,12 @@ func (p *SQLancer) ExecAndVerify(stmt *ast.SelectStmt, originRow map[string]*con
 }
 
 // may not return string
-func (p *SQLancer) execSelect(stmt string) ([][]*connection.QueryItem, error) {
+func (p *SQLancer) execSelect(stmt string) ([]connection.QueryItems, error) {
 	log.L().Debug("execSelect", zap.String("stmt", stmt))
 	return p.executor.GetConn().Select(stmt)
 }
 
-func (p *SQLancer) verifyPQS(originRow map[string]*connection.QueryItem, columns []Column, resultSets [][]*connection.QueryItem) bool {
+func (p *SQLancer) verifyPQS(originRow map[string]*connection.QueryItem, columns []Column, resultSets []connection.QueryItems) bool {
 	for _, row := range resultSets {
 		if p.checkRow(originRow, columns, row) {
 			return true
@@ -535,7 +538,7 @@ func (p *SQLancer) verifyPQS(originRow map[string]*connection.QueryItem, columns
 	return false
 }
 
-func (p *SQLancer) checkRow(originRow map[string]*connection.QueryItem, columns []Column, resultSet []*connection.QueryItem) bool {
+func (p *SQLancer) checkRow(originRow map[string]*connection.QueryItem, columns []Column, resultSet connection.QueryItems) bool {
 	for i, c := range columns {
 		// fmt.Printf("i: %d, column: %+v, left: %+v, right: %+v", i, c, originRow[c], resultSet[i])
 		if !compareQueryItem(originRow[c.GetAliasName().String()], resultSet[i]) {
@@ -591,18 +594,45 @@ func (p *SQLancer) GenSelectStmt() (*ast.SelectStmt, string, *generator.GenCtx, 
 	return selectAST, selectSQL, genCtx, err
 }
 
-func (p *SQLancer) checkResultSet(set [][][]*connection.QueryItem, ignoreSort bool) bool {
+// may sort input slice
+func checkResultSet(set [][]connection.QueryItems, ignoreSort bool) bool {
 	if len(set) < 2 {
 		return true
 	}
 
-	// TODO: now only compare result rows number
-	// should support to compare rows' order
-
-	length := len(set[0])
-	for _, rows := range set {
-		if len(rows) != length {
+	if ignoreSort {
+		for _, rows := range set {
+			sort.SliceStable(rows, func(i, j int) bool {
+				if len(rows[i]) > len(rows[j]) {
+					return false
+				} else if len(rows[i]) < len(rows[j]) {
+					return true
+				}
+				for k := 0; k < len(rows[i]); k++ {
+					if rows[i][k].String() > rows[j][k].String() {
+						return false
+					} else if rows[i][k].String() < rows[j][k].String() {
+						return true
+					}
+				}
+				return false
+			})
+		}
+	}
+	baseRows := set[0]
+	for i := 1; i < len(set); i++ {
+		if len(set[i]) != len(baseRows) {
 			return false
+		}
+		for j := range set[i] {
+			if len(set[i][j]) != len(baseRows[j]) {
+				return false
+			}
+			for k := range set[i][j] {
+				if !compareQueryItem(set[i][j][k], baseRows[j][k]) {
+					return false
+				}
+			}
 		}
 	}
 	return true

@@ -27,6 +27,7 @@ type QueryItem struct {
 	ValType   *sql.ColumnType
 	ValString string
 }
+type QueryItems []*QueryItem
 
 func (q *QueryItem) String() string {
 	var strValue = q.ValString
@@ -48,6 +49,10 @@ func (q *QueryItem) MustSame(q1 *QueryItem) error {
 
 	if q.Null != q1.Null {
 		return errors.Errorf("one is NULL but another is not, self: %t, another: %t", q.Null, q1.Null)
+	}
+
+	if q.Null && q1.Null {
+		return nil
 	}
 
 	if q.ValType.Name() != q1.ValType.Name() {
