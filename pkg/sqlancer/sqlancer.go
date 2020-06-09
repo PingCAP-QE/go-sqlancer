@@ -602,9 +602,6 @@ func checkResultSet(set [][]connection.QueryItems, ignoreSort bool) bool {
 
 	if ignoreSort {
 		for _, rows := range set {
-			for idx := range rows {
-				sort.Stable(rows[idx])
-			}
 			sort.SliceStable(rows, func(i, j int) bool {
 				if len(rows[i]) > len(rows[j]) {
 					return false

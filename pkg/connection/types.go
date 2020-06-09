@@ -41,19 +41,6 @@ func (q *QueryItem) String() string {
 	return fmt.Sprintf("%s is %s type", strValue, q.ValType.DatabaseTypeName())
 }
 
-// implement Sort interface
-func (qs QueryItems) Less(i, j int) bool {
-	return qs[i].String() < qs[j].String()
-}
-
-func (qs QueryItems) Len() int {
-	return len(qs)
-}
-
-func (qs QueryItems) Swap(i, j int) {
-	qs[i], qs[j] = qs[j], qs[i]
-}
-
 // MustSame compare tow QueryItem and return error if not same
 func (q *QueryItem) MustSame(q1 *QueryItem) error {
 	if (q == nil) != (q1 == nil) {
