@@ -18,5 +18,5 @@ func TestParse(_t *testing.T) {
 	if err != nil {
 		_ = fmt.Errorf("error: %s", err.Error())
 	}
-	fmt.Printf("%#v", stmt[0].(*ast.SelectStmt).Fields.Fields[0].Expr.(*ast.AggregateFuncExpr).Args[0].(*ast.ColumnNameExpr).Name)
+	fmt.Printf("%#v", stmt[0].(*ast.SelectStmt).From.TableRefs.Left)
 }

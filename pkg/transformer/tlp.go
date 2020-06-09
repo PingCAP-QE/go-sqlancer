@@ -3,6 +3,7 @@ package transformer
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
@@ -56,17 +57,6 @@ func (t *TLPTrans) Transform(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNod
 func (t *TLPTrans) transOneStmt(stmt *ast.SelectStmt) (ast.ResultSetNode, error) {
 	if t.Expr == nil {
 		return nil, errors.New("no expr")
-	}
-
-	// an aggregate func may add some usless empty rows
-	// such as [3] and [NULL, NULL, 3]
-	if stmt.Fields.Fields != nil {
-		for _, field := range stmt.Fields.Fields {
-			// TODO: cannot avoid cases like `count(*) + 1`
-			if _, ok := field.Expr.(*ast.AggregateFuncExpr); ok {
-				return nil, errors.New("any aggregation func should not be in stmt")
-			}
-		}
 	}
 
 	var selects []*ast.SelectStmt
@@ -181,8 +171,10 @@ func tryAggTransform(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) (ast.
 					exprNames[field.AsName.String()] = true
 				}
 				if fn, ok := field.Expr.(*ast.AggregateFuncExpr); ok {
-					if SelfComposableMap[fn.F] && !fn.Distinct {
+					if SelfComposableMap[strings.ToLower(fn.F)] && !fn.Distinct {
 						aggFns = append(aggFns, index)
+						selectFn := *fn
+						selectField.Expr = &selectFn
 						continue
 					} else {
 						return nil, errors.New("only self-composable aggregation func is supported")
@@ -211,9 +203,10 @@ func tryAggTransform(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) (ast.
 			}
 
 			return &ast.SelectStmt{
-				Fields: &ast.FieldList{Fields: selectFields},
+				SelectStmtOpts: selectStmt.SelectStmtOpts,
+				Fields:         &ast.FieldList{Fields: selectFields},
 				From: &ast.TableRefsClause{TableRefs: &ast.Join{
-					Left: unionStmt,
+					Left: &ast.TableSource{Source: unionStmt, AsName: model.NewCIStr("tmp")},
 				}},
 			}, nil
 		}
