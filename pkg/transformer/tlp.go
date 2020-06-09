@@ -86,8 +86,14 @@ func (t *TLPTrans) transOneStmt(stmt *ast.SelectStmt) (ast.ResultSetNode, error)
 		}
 	}
 
-	for i, selectStmt := range selects {
-		if i != 0 {
+	if stmt.Distinct {
+		for _, selectStmt := range selects {
+			selectStmt.Distinct = false
+			selectStmt.IsAfterUnionDistinct = true
+
+		}
+	} else {
+		for _, selectStmt := range selects {
 			selectStmt.IsAfterUnionDistinct = false
 		}
 	}
