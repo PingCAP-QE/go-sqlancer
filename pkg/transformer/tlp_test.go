@@ -20,6 +20,7 @@ type TLPTestCase struct {
 var (
 	TLPTestCases = []TLPTestCase{
 		{
+			// normal transform in where-clause
 			tp:   WHERE,
 			expr: "t.c",
 			TestCase: TestCase{
@@ -30,6 +31,7 @@ var (
 			},
 		},
 		{
+			// transform in on-condition without join, should fail
 			tp:   ON_CONDITION,
 			expr: "t.c",
 			TestCase: TestCase{
@@ -39,6 +41,7 @@ var (
 			},
 		},
 		{
+			// transform in having-clause without group by, should fail
 			tp:   HAVING,
 			expr: "t.c",
 			TestCase: TestCase{
@@ -48,6 +51,7 @@ var (
 			},
 		},
 		{
+			// normal transform in where-clause
 			tp:   WHERE,
 			expr: "t0.c=t1.c",
 			TestCase: TestCase{
@@ -58,6 +62,7 @@ var (
 			},
 		},
 		{
+			// normal transform in on-condition
 			tp:   ON_CONDITION,
 			expr: "t0.c=t1.c",
 			TestCase: TestCase{
@@ -68,6 +73,17 @@ var (
 			},
 		},
 		{
+			// transform in on-condition after outer join, should fail
+			tp:   ON_CONDITION,
+			expr: "t0.c=t1.c",
+			TestCase: TestCase{
+				fail:   true,
+				origin: "SELECT * FROM t0 RIGHT JOIN t1 ON true",
+				expect: "",
+			},
+		},
+		{
+			// transform in having-clause without group by, should fail
 			tp:   HAVING,
 			expr: "t0.c=t1.c",
 			TestCase: TestCase{
@@ -77,6 +93,7 @@ var (
 			},
 		},
 		{
+			// normal transform in where-clause
 			tp:   WHERE,
 			expr: "t0.c=t1.c",
 			TestCase: TestCase{
@@ -87,6 +104,7 @@ var (
 			},
 		},
 		{
+			// normal transform in on-condition
 			tp:   ON_CONDITION,
 			expr: "t0.c=t1.c",
 			TestCase: TestCase{
@@ -97,6 +115,7 @@ var (
 			},
 		},
 		{
+			// normal transform in having-clause
 			tp:   HAVING,
 			expr: "SUM(t0.c) > 1",
 			TestCase: TestCase{
@@ -104,6 +123,17 @@ var (
 				expect: "SELECT * FROM t0 JOIN t1 GROUP BY t0.c HAVING SUM(t0.c) > 1 IS TRUE " +
 					"UNION ALL SELECT * FROM t0 JOIN t1 GROUP BY t0.c HAVING SUM(t0.c) > 1 IS FALSE " +
 					"UNION ALL SELECT * FROM t0 JOIN t1 GROUP BY t0.c HAVING SUM(t0.c) > 1 IS NULL",
+			},
+		},
+		{
+			// normal transform with distinct
+			tp:   WHERE,
+			expr: "t.c",
+			TestCase: TestCase{
+				origin: "SELECT DISTINCT * FROM t",
+				expect: "SELECT * FROM t WHERE t.c IS TRUE " +
+					"UNION SELECT * FROM t WHERE t.c IS FALSE " +
+					"UNION SELECT * FROM t WHERE t.c IS NULL",
 			},
 		},
 	}
