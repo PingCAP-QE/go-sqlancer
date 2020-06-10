@@ -25,6 +25,7 @@ const (
 var (
 	TLPTypes          = [...]TLPType{WHERE, ON_CONDITION, HAVING}
 	SelfComposableMap = map[string]bool{ast.AggFuncMax: true, ast.AggFuncMin: true, ast.AggFuncSum: true}
+	TmpTable          = model.NewCIStr("tmp")
 )
 
 type TLPTrans struct {
@@ -158,21 +159,18 @@ func RandTLPType() TLPType {
 
 func tryAggTransform(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) (ast.ResultSetNode, error) {
 	if selectStmt.Fields != nil && len(selectStmt.Fields.Fields) != 0 {
-		aggFns := make([]int, 0)
-		exprNames := make(map[string]bool)
+		aggFns := make(map[int]bool)
 		selectFields := make([]*ast.SelectField, 0, len(selectStmt.Fields.Fields))
 		unionFields := make([]*ast.SelectField, 0, len(selectStmt.Fields.Fields))
 		for index, field := range selectStmt.Fields.Fields {
 			selectField, unionField := *field, *field
 			selectFields = append(selectFields, &selectField)
 			unionFields = append(unionFields, &unionField)
+			unionFields[index].AsName = model.NewCIStr(fmt.Sprintf("c%d", index))
 			if !field.Auxiliary {
-				if field.AsName.String() != "" {
-					exprNames[field.AsName.String()] = true
-				}
 				if fn, ok := field.Expr.(*ast.AggregateFuncExpr); ok {
 					if SelfComposableMap[strings.ToLower(fn.F)] && !fn.Distinct {
-						aggFns = append(aggFns, index)
+						aggFns[index] = true
 						selectFn := *fn
 						selectField.Expr = &selectFn
 						continue
@@ -184,18 +182,23 @@ func tryAggTransform(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) (ast.
 		}
 
 		if len(aggFns) != 0 {
-			for _, index := range aggFns {
-				if unionFields[index].AsName.String() == "" {
-					name := chooseName(index, exprNames)
-					unionFields[index].AsName = model.NewCIStr(name)
-				}
-				selectFields[index].AsName = model.NewCIStr("")
-				selectFields[index].Expr.(*ast.AggregateFuncExpr).Args = []ast.ExprNode{
-					&ast.ColumnNameExpr{
+			for index, selectField := range selectFields {
+				if !aggFns[index] {
+					selectField.Expr = &ast.ColumnNameExpr{
 						Name: &ast.ColumnName{
-							Name: unionFields[index].AsName,
+							Table: TmpTable,
+							Name:  unionFields[index].AsName,
 						},
-					},
+					}
+				} else {
+					selectField.Expr.(*ast.AggregateFuncExpr).Args = []ast.ExprNode{
+						&ast.ColumnNameExpr{
+							Name: &ast.ColumnName{
+								Table: TmpTable,
+								Name:  unionFields[index].AsName,
+							},
+						},
+					}
 				}
 			}
 			for _, stmt := range unionStmt.SelectList.Selects {
@@ -206,19 +209,10 @@ func tryAggTransform(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) (ast.
 				SelectStmtOpts: selectStmt.SelectStmtOpts,
 				Fields:         &ast.FieldList{Fields: selectFields},
 				From: &ast.TableRefsClause{TableRefs: &ast.Join{
-					Left: &ast.TableSource{Source: unionStmt, AsName: model.NewCIStr("tmp")},
+					Left: &ast.TableSource{Source: unionStmt, AsName: TmpTable},
 				}},
 			}, nil
 		}
 	}
 	return unionStmt, nil
-}
-
-func chooseName(index int, exprNames map[string]bool) string {
-	for i := 1; ; i++ {
-		name := fmt.Sprintf("c%d", i*index)
-		if !exprNames[name] {
-			return name
-		}
-	}
 }
