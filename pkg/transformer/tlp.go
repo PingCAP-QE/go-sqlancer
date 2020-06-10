@@ -2,9 +2,12 @@ package transformer
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/pingcap/log"
 	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/opcode"
 	"go.uber.org/zap"
 
@@ -20,7 +23,9 @@ const (
 )
 
 var (
-	TLPTypes = []TLPType{WHERE, ON_CONDITION, HAVING}
+	TLPTypes          = [...]TLPType{WHERE, ON_CONDITION, HAVING}
+	SelfComposableMap = map[string]bool{ast.AggFuncMax: true, ast.AggFuncMin: true, ast.AggFuncSum: true}
+	TmpTable          = model.NewCIStr("tmp")
 )
 
 type TLPTrans struct {
@@ -55,17 +60,6 @@ func (t *TLPTrans) transOneStmt(stmt *ast.SelectStmt) (ast.ResultSetNode, error)
 		return nil, errors.New("no expr")
 	}
 
-	// an aggregate func may add some usless empty rows
-	// such as [3] and [NULL, NULL, 3]
-	if stmt.Fields.Fields != nil {
-		for _, field := range stmt.Fields.Fields {
-			// TODO: cannot avoid cases like `count(*) + 1`
-			if _, ok := field.Expr.(*ast.AggregateFuncExpr); ok {
-				return nil, errors.New("any aggregation func should not be in stmt")
-			}
-		}
-	}
-
 	var selects []*ast.SelectStmt
 
 	switch t.Tp {
@@ -98,10 +92,12 @@ func (t *TLPTrans) transOneStmt(stmt *ast.SelectStmt) (ast.ResultSetNode, error)
 		}
 	}
 
-	return &ast.UnionStmt{
+	// try aggregate transform
+	return tryAggTransform(stmt, &ast.UnionStmt{
 		SelectList: &ast.UnionSelectList{
 			Selects: selects,
-		}}, nil
+		}})
+
 }
 
 func (t *TLPTrans) transHaving(stmt *ast.SelectStmt) []*ast.SelectStmt {
@@ -159,4 +155,64 @@ func partition(expr ast.ExprNode) []ast.ExprNode {
 
 func RandTLPType() TLPType {
 	return TLPTypes[util.Rd(len(TLPTypes))]
+}
+
+func tryAggTransform(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) (ast.ResultSetNode, error) {
+	if selectStmt.Fields != nil && len(selectStmt.Fields.Fields) != 0 {
+		aggFns := make(map[int]bool)
+		selectFields := make([]*ast.SelectField, 0, len(selectStmt.Fields.Fields))
+		unionFields := make([]*ast.SelectField, 0, len(selectStmt.Fields.Fields))
+		for index, field := range selectStmt.Fields.Fields {
+			selectField, unionField := *field, *field
+			selectFields = append(selectFields, &selectField)
+			unionFields = append(unionFields, &unionField)
+			unionFields[index].AsName = model.NewCIStr(fmt.Sprintf("c%d", index))
+			if !field.Auxiliary {
+				if fn, ok := field.Expr.(*ast.AggregateFuncExpr); ok {
+					if SelfComposableMap[strings.ToLower(fn.F)] && !fn.Distinct {
+						aggFns[index] = true
+						selectFn := *fn
+						selectField.Expr = &selectFn
+						continue
+					} else {
+						return nil, errors.New("only self-composable aggregation func is supported")
+					}
+				}
+			}
+		}
+
+		if len(aggFns) != 0 {
+			for index, selectField := range selectFields {
+				if !aggFns[index] {
+					selectField.Expr = &ast.ColumnNameExpr{
+						Name: &ast.ColumnName{
+							Table: TmpTable,
+							Name:  unionFields[index].AsName,
+						},
+					}
+				} else {
+					selectField.Expr.(*ast.AggregateFuncExpr).Args = []ast.ExprNode{
+						&ast.ColumnNameExpr{
+							Name: &ast.ColumnName{
+								Table: TmpTable,
+								Name:  unionFields[index].AsName,
+							},
+						},
+					}
+				}
+			}
+			for _, stmt := range unionStmt.SelectList.Selects {
+				stmt.Fields = &ast.FieldList{Fields: unionFields}
+			}
+
+			return &ast.SelectStmt{
+				SelectStmtOpts: selectStmt.SelectStmtOpts,
+				Fields:         &ast.FieldList{Fields: selectFields},
+				From: &ast.TableRefsClause{TableRefs: &ast.Join{
+					Left: &ast.TableSource{Source: unionStmt, AsName: TmpTable},
+				}},
+			}, nil
+		}
+	}
+	return unionStmt, nil
 }

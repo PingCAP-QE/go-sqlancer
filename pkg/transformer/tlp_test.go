@@ -136,6 +136,36 @@ var (
 					"UNION SELECT * FROM t WHERE t.c IS NULL",
 			},
 		},
+		{
+			// normal transform with aggregate functions
+			tp:   WHERE,
+			expr: "t.c",
+			TestCase: TestCase{
+				origin: "SELECT MAX(c), MIN(c), SUM(c) FROM t",
+				expect: "SELECT MAX(tmp.c0), MIN(tmp.c1), SUM(tmp.c2) FROM " +
+					"(" +
+					"SELECT MAX(c) as c0, MIN(c) as c1, SUM(c) as c2 FROM t WHERE t.c IS TRUE " +
+					"UNION ALL SELECT MAX(c) as c0, MIN(c) as c1, SUM(c) as c2 FROM t WHERE t.c IS FALSE " +
+					"UNION ALL SELECT MAX(c) as c0, MIN(c) as c1, SUM(c) as c2 FROM t WHERE t.c IS NULL" +
+					")" +
+					" as tmp",
+			},
+		},
+		{
+			// transform with aggregate functions, partially with normal fields
+			tp:   WHERE,
+			expr: "t.c",
+			TestCase: TestCase{
+				origin: "SELECT MAX(c), MIN(c), SUM(c), c FROM t",
+				expect: "SELECT MAX(tmp.c0), MIN(tmp.c1), SUM(tmp.c2), tmp.c3 FROM " +
+					"(" +
+					"SELECT MAX(c) as c0, MIN(c) as c1, SUM(c) as c2, c as c3 FROM t WHERE t.c IS TRUE " +
+					"UNION ALL SELECT MAX(c) as c0, MIN(c) as c1, SUM(c) as c2, c as c3 FROM t WHERE t.c IS FALSE " +
+					"UNION ALL SELECT MAX(c) as c0, MIN(c) as c1, SUM(c) as c2, c as c3 FROM t WHERE t.c IS NULL" +
+					")" +
+					" as tmp",
+			},
+		},
 	}
 )
 
