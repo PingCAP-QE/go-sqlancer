@@ -73,7 +73,7 @@ func (t *TLPTrans) transOneStmt(stmt *ast.SelectStmt) (ast.ResultSetNode, error)
 		selects = t.transWhere(stmt)
 	case ON_CONDITION:
 		// only cross join is valid in on-condition transform
-		if stmt.From != nil && stmt.From.TableRefs != nil && stmt.From.TableRefs.Right != nil && stmt.From.TableRefs.Tp == ast.CrossJoin {
+		if stmt.From != nil && stmt.From.TableRefs != nil && stmt.From.TableRefs.Right != nil && !hasOuterJoin(stmt.From.TableRefs) {
 			selects = t.transOnCondition(stmt)
 		} else {
 			return nil, errors.New("from clause is invalid")
@@ -159,4 +159,15 @@ func partition(expr ast.ExprNode) []ast.ExprNode {
 
 func RandTLPType() TLPType {
 	return TLPTypes[util.Rd(len(TLPTypes))]
+}
+
+func hasOuterJoin(resultSet ast.ResultSetNode) bool {
+	if join, _ := resultSet.(*ast.Join); join == nil {
+		return false
+	} else {
+		if join.Right != nil && join.Tp != ast.CrossJoin {
+			return true
+		}
+		return hasOuterJoin(join.Left) || hasOuterJoin(join.Right)
+	}
 }
