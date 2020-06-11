@@ -78,7 +78,7 @@ var (
 			expr: "t0.c=t1.c",
 			TestCase: TestCase{
 				fail:   true,
-				origin: "SELECT * FROM t0 RIGHT JOIN t1 ON true",
+				origin: "SELECT * FROM (t0 JOIN t1 RIGHT JOIN t2 ON true) JOIN t3",
 				expect: "",
 			},
 		},
