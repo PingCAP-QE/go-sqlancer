@@ -329,10 +329,9 @@ func (p *SQLancer) progress() {
 		var transformers []transformer.Transformer
 		if approach == approachNoREC {
 			transformers = []transformer.Transformer{transformer.NoREC}
-		} else {
+		}
+		if approach == approachTLP {
 			transformers = []transformer.Transformer{
-				// approachTLP contains transformer.NoREC
-				transformer.NoREC,
 				&transformer.TLPTrans{
 					Expr: &ast.ParenthesesExpr{Expr: p.ConditionClause(genCtx, 2)},
 					Tp:   transformer.RandTLPType(),
