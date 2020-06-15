@@ -70,7 +70,7 @@ func (t *TLPTrans) transOneStmt(stmt *ast.SelectStmt) (ast.ResultSetNode, error)
 		if stmt.From != nil && stmt.From.TableRefs != nil && stmt.From.TableRefs.Right != nil && !hasOuterJoin(stmt.From.TableRefs) {
 			selects = t.transOnCondition(stmt)
 		} else {
-			return nil, errors.New("from clause is invalid")
+			return nil, errors.New("from clause is invalid or has outer join")
 		}
 	case HAVING:
 		if stmt.GroupBy != nil {
