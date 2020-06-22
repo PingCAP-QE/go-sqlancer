@@ -68,6 +68,14 @@ func (e *Executor) walkDDLCreateTable(index int, node *ast.CreateTableStmt, colT
 			Tp:   fieldType,
 		})
 	}
+
+	// Auto_random should only have one primary key
+	// The columns in expressions of partition table must be included
+	// in primary key/unique constraints
+	// So no partition table if there is auto_random column
+	if idCol.Options[0].Tp == ast.ColumnOptionAutoRandom {
+		node.Partition = nil
+	}
 	if node.Partition != nil {
 		if colType := e.walkPartition(index, node.Partition, colTypes); colType != "" {
 			makeConstraintPrimaryKey(node, fmt.Sprintf("col_%s_%d", colType, index))
