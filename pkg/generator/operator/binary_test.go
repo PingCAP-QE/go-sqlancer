@@ -4,7 +4,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,22 +17,22 @@ func TestBinaryCaseNull_1(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseNull_2(t *testing.T) {
@@ -45,22 +44,22 @@ func TestBinaryCaseNull_2(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseInt_1(t *testing.T) {
@@ -72,32 +71,32 @@ func TestBinaryCaseInt_1(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseInt_2(t *testing.T) {
@@ -109,32 +108,32 @@ func TestBinaryCaseInt_2(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseInt_3(t *testing.T) {
@@ -146,32 +145,32 @@ func TestBinaryCaseInt_3(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseFloat_1(t *testing.T) {
@@ -183,32 +182,32 @@ func TestBinaryCaseFloat_1(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseFloat_2(t *testing.T) {
@@ -220,32 +219,32 @@ func TestBinaryCaseFloat_2(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseFloat_3(t *testing.T) {
@@ -257,32 +256,32 @@ func TestBinaryCaseFloat_3(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseFloat_4(t *testing.T) {
@@ -294,32 +293,32 @@ func TestBinaryCaseFloat_4(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseString_1(t *testing.T) {
@@ -331,32 +330,32 @@ func TestBinaryCaseString_1(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseString_2(t *testing.T) {
@@ -368,32 +367,32 @@ func TestBinaryCaseString_2(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestBinaryCaseString_3(t *testing.T) {
@@ -405,32 +404,32 @@ func TestBinaryCaseString_3(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Ne.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Eq.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Le.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Ge.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(true)
 	actual, err = Lt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	expected.SetValue(false)
 	actual, err = Gt.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestNotString_1(t *testing.T) {
@@ -440,37 +439,37 @@ func TestNotString_1(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	a.SetValue("12abc")
 	expected.SetValue(false)
 	actual, err = Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	a.SetValue(".3,wZ!")
 	expected.SetValue(false)
 	actual, err = Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	a.SetValue(".1")
 	expected.SetValue(false)
 	actual, err = Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	a.SetValue(".0000001e+00")
 	expected.SetValue(false)
 	actual, err = Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 
 	a.SetValue(".000000e+00")
 	expected.SetValue(true)
 	actual, err = Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseNull_1(t *testing.T) {
@@ -482,7 +481,7 @@ func TestLogicXorCaseNull_1(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseNull_2(t *testing.T) {
@@ -494,7 +493,7 @@ func TestLogicXorCaseNull_2(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseNull_3(t *testing.T) {
@@ -506,7 +505,7 @@ func TestLogicXorCaseNull_3(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseNull_4(t *testing.T) {
@@ -518,7 +517,7 @@ func TestLogicXorCaseNull_4(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseFloat_1(t *testing.T) {
@@ -530,7 +529,7 @@ func TestLogicXorCaseFloat_1(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseFloat_2(t *testing.T) {
@@ -542,7 +541,7 @@ func TestLogicXorCaseFloat_2(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseFloat_3(t *testing.T) {
@@ -554,7 +553,7 @@ func TestLogicXorCaseFloat_3(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseFloat_4(t *testing.T) {
@@ -566,7 +565,7 @@ func TestLogicXorCaseFloat_4(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseString_1(t *testing.T) {
@@ -578,7 +577,7 @@ func TestLogicXorCaseString_1(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseString_2(t *testing.T) {
@@ -590,7 +589,7 @@ func TestLogicXorCaseString_2(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseString_3(t *testing.T) {
@@ -602,7 +601,7 @@ func TestLogicXorCaseString_3(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseString_4(t *testing.T) {
@@ -614,7 +613,7 @@ func TestLogicXorCaseString_4(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicXorCaseInt_1(t *testing.T) {
@@ -626,7 +625,7 @@ func TestLogicXorCaseInt_1(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicXor.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseInt_1(t *testing.T) {
@@ -638,7 +637,7 @@ func TestLogicOrCaseInt_1(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseInt_2(t *testing.T) {
@@ -650,7 +649,7 @@ func TestLogicOrCaseInt_2(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseNull_1(t *testing.T) {
@@ -662,7 +661,7 @@ func TestLogicOrCaseNull_1(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseNull_2(t *testing.T) {
@@ -674,7 +673,7 @@ func TestLogicOrCaseNull_2(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseNull_3(t *testing.T) {
@@ -686,7 +685,7 @@ func TestLogicOrCaseNull_3(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseNull_4(t *testing.T) {
@@ -698,7 +697,7 @@ func TestLogicOrCaseNull_4(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseFloat_1(t *testing.T) {
@@ -710,7 +709,7 @@ func TestLogicOrCaseFloat_1(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseFloat_2(t *testing.T) {
@@ -722,7 +721,7 @@ func TestLogicOrCaseFloat_2(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseFloat_3(t *testing.T) {
@@ -734,7 +733,7 @@ func TestLogicOrCaseFloat_3(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseString_1(t *testing.T) {
@@ -746,7 +745,7 @@ func TestLogicOrCaseString_1(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseString_2(t *testing.T) {
@@ -758,7 +757,7 @@ func TestLogicOrCaseString_2(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 // TODO: fix it
@@ -772,7 +771,7 @@ func TestLogicOrCaseString_3(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseString_4(t *testing.T) {
@@ -784,7 +783,7 @@ func TestLogicOrCaseString_4(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicOrCaseString_5(t *testing.T) {
@@ -796,7 +795,7 @@ func TestLogicOrCaseString_5(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicOr.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseNull_1(t *testing.T) {
@@ -808,7 +807,7 @@ func TestLogicAndCaseNull_1(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseNull_2(t *testing.T) {
@@ -820,7 +819,7 @@ func TestLogicAndCaseNull_2(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseNull_3(t *testing.T) {
@@ -832,7 +831,7 @@ func TestLogicAndCaseNull_3(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseNull_4(t *testing.T) {
@@ -844,7 +843,7 @@ func TestLogicAndCaseNull_4(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseString_1(t *testing.T) {
@@ -856,7 +855,7 @@ func TestLogicAndCaseString_1(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseString_2(t *testing.T) {
@@ -868,7 +867,7 @@ func TestLogicAndCaseString_2(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 // TODO: fix it
@@ -881,7 +880,7 @@ func TestLogicAndCaseString_3(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseString_4(t *testing.T) {
@@ -893,7 +892,7 @@ func TestLogicAndCaseString_4(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseFloat_1(t *testing.T) {
@@ -905,7 +904,7 @@ func TestLogicAndCaseFloat_1(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseFloat_2(t *testing.T) {
@@ -917,7 +916,7 @@ func TestLogicAndCaseFloat_2(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseInt_1(t *testing.T) {
@@ -929,7 +928,7 @@ func TestLogicAndCaseInt_1(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseInt_2(t *testing.T) {
@@ -941,7 +940,7 @@ func TestLogicAndCaseInt_2(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestLogicAndCaseInt_3(t *testing.T) {
@@ -953,5 +952,5 @@ func TestLogicAndCaseInt_3(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := LogicAnd.Eval(a, b)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }

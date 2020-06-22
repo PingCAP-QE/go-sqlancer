@@ -11,7 +11,7 @@ require (
 	github.com/pingcap/parser v0.0.0-20200522094936-3b720a0512a6
 	github.com/pingcap/tidb v2.0.11+incompatible
 	github.com/satori/go.uuid v1.2.0
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.0
 	github.com/uber/jaeger-lib v2.2.0+incompatible // indirect
 	go.uber.org/zap v1.15.0
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e

@@ -76,7 +76,7 @@ func (g *Generator) constValueExpr(tp uint64) (ast.ValueExpr, parser_driver.Valu
 			return ast.NewValueExpr("", "", ""), val
 		}
 	case types.TypeNumberLikeStringArg:
-		var s string = fmt.Sprintf("%f", RdFloat64())
+		var s = fmt.Sprintf("%f", RdFloat64())
 		if RdBool() {
 			s = fmt.Sprintf("%d", RdInt64())
 		}
@@ -130,7 +130,7 @@ func (g *Generator) columnExpr(genCtx *GenCtx, argTp uint64) (*ast.ColumnNameExp
 
 	// no pivot rows
 	// so value is generate by random
-	if genCtx.IsInUpdateDeleteStmt {
+	if !genCtx.IsPQSMode || genCtx.IsNoRECMode || genCtx.IsInUpdateDeleteStmt {
 		tp := TransStringType(typeStr)
 		_, val = g.constValueExpr(tp)
 		return col, val, nil

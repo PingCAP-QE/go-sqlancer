@@ -3,7 +3,6 @@ package operator
 import (
 	"testing"
 
-	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 	"github.com/stretchr/testify/assert"
 )
@@ -15,7 +14,7 @@ func TestNotCaseInt_1(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestNotCaseInt_2(t *testing.T) {
@@ -25,7 +24,7 @@ func TestNotCaseInt_2(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestNotCaseFloat_1(t *testing.T) {
@@ -35,7 +34,7 @@ func TestNotCaseFloat_1(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestNotCaseFloat_2(t *testing.T) {
@@ -45,7 +44,7 @@ func TestNotCaseFloat_2(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 // TODO: fix it
@@ -56,7 +55,7 @@ func TestNotCaseString_2(t *testing.T) {
 	expected.SetValue(false)
 	actual, err := Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestNotCaseString_3(t *testing.T) {
@@ -66,7 +65,7 @@ func TestNotCaseString_3(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestNotCaseString_4(t *testing.T) {
@@ -76,7 +75,7 @@ func TestNotCaseString_4(t *testing.T) {
 	expected.SetValue(true)
 	actual, err := Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }
 
 func TestNotCaseNull_1(t *testing.T) {
@@ -86,5 +85,5 @@ func TestNotCaseNull_1(t *testing.T) {
 	expected.SetValue(nil)
 	actual, err := Not.Eval(a)
 	assert.NoError(t, err, "should not return error")
-	assert.Equal(t, util.CompareValue(actual, expected), true)
+	assert.Equal(t, expected, actual)
 }

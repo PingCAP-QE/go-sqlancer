@@ -8,10 +8,13 @@ GOBUILD=$(GO) build
 default: sqlancer
 
 sqlancer:
-	$(GOBUILD) $(GOMOD) -o bin/go-sqlancer cmd/pivot/*.go
+	$(GOBUILD) $(GOMOD) -o bin/go-sqlancer cmd/*.go
 
 fmt:
 	go fmt ./...
+
+test:
+	go test ./...
 
 tidy:
 	@echo "go mod tidy"

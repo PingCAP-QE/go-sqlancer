@@ -1,19 +1,50 @@
-# go-sqlancer
+# Go-sqlancer
 
-Inspired by Manuel Rigger's paper [Testing Database Engines via Pivoted Query Synthesis](https://arxiv.org/pdf/2001.04174.pdf)
+[![Test](https://github.com/chaos-mesh/go-sqlancer/workflows/Test/badge.svg)](https://github.com/chaos-mesh/go-sqlancer/actions?query=workflow%3ATest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/chaos-mesh/go-sqlancer)](https://goreportcard.com/report/github.com/chaos-mesh/go-sqlancer)
 
-## Quick start
+Inspired by Manuel Rigger's paper [Testing Database Engines via Pivoted Query Synthesis](https://arxiv.org/pdf/2001.04174.pdf).
+
+## Testing approaches
+
+Go-sqlancer has supported Pivoted Query Synthesis (PQS), Non-optimizing Reference Engine Construction (NoREC) and Ternary Logic Partitioning (TLP). You can use `-mode` to specify the testing approach.
+
+## Quickstart
 
 ```bash
 make
 bin/go-sqlancer -dsn "root:@tcp(127.0.0.1:4000)/"
 ```
 
+And other flags you can set:
+
+```bash
+Usage of go-sqlancer:
+  -approach string
+        use NoRec or PQS method or both, split by vertical bar (default "pqs|norec|tlp")
+  -depth int
+        sql depth (default 1)
+  -dsn string
+        dsn of target db for testing
+  -duration duration
+        fuzz duration (default 5h0m0s)
+  -enable-expr-idx
+        enable create expression index
+  -enable-hint
+        enable sql hint for TiDB
+  -log-level string
+        set log level: info, warn, error, debug [default: info] (default "info")
+  -silent
+        silent when verify failed
+  -view-count int
+        count of views to be created (default 10)
+```
+
 ## Supported Statement
 
-### Expression
+### Functions & Operators
 
-> XOR, AND, OR, NOT, GT, LT, NE, EQ, GE, LE etc.
+> XOR, AND, OR, NOT, GT, LT, NE, EQ, GE, LE, IF, CASE, IN, BETWEEN, etc.
 
 * https://github.com/pingcap/tidb/issues/16716
 
@@ -155,12 +186,6 @@ tidb> SELECT * from t;
 - [ ] inl_hash_join
 - [ ] inl_merge_join
 
-## Issues
+## Issues found by go-sqlancer
 
-- https://github.com/pingcap/tidb/issues/16716
-- https://github.com/pingcap/tidb/issues/16679
-- https://github.com/pingcap/tidb/issues/16599
-- https://github.com/pingcap/tidb/issues/16677
-- https://github.com/pingcap/tidb/issues/16788
-- https://github.com/pingcap/tidb/issues/16896
-- https://github.com/tidb-challenge-program/bug-hunting-issue/issues/64
+[Fuzz Issues](https://github.com/orgs/pingcap/projects/16)
