@@ -7,7 +7,6 @@ import (
 	. "github.com/chaos-mesh/go-sqlancer/pkg/util"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
-	"github.com/pingcap/parser/opcode"
 	parser_driver "github.com/pingcap/tidb/types/parser_driver"
 )
 
@@ -17,13 +16,13 @@ func Evaluate(e ast.Node, genCtx *GenCtx) parser_driver.ValueExpr {
 	case *ast.ParenthesesExpr:
 		return Evaluate(t.Expr, genCtx)
 	case *ast.BinaryOperationExpr:
-		res, err := operator.BinaryOps.Eval(opcode.Ops[t.Op], Evaluate(t.L, genCtx), Evaluate(t.R, genCtx))
+		res, err := operator.BinaryOps.Eval(t.Op.String(), Evaluate(t.L, genCtx), Evaluate(t.R, genCtx))
 		if err != nil {
 			panic(fmt.Sprintf("error occurred on eval: %+v", err))
 		}
 		return res
 	case *ast.UnaryOperationExpr:
-		res, err := operator.UnaryOps.Eval(opcode.Ops[t.Op], Evaluate(t.V, genCtx))
+		res, err := operator.UnaryOps.Eval(t.Op.String(), Evaluate(t.V, genCtx))
 		if err != nil {
 			panic(fmt.Sprintf("error occurred on eval: %+v", err))
 		}

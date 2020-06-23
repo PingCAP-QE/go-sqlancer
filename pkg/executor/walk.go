@@ -11,6 +11,7 @@ import (
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/mysql"
 	parserTypes "github.com/pingcap/parser/types"
+	"github.com/pingcap/tidb/meta/autoid"
 	tidbTypes "github.com/pingcap/tidb/types"
 	driver "github.com/pingcap/tidb/types/parser_driver"
 )
@@ -32,18 +33,28 @@ var (
 		tidbTypes.FromDate(2010, 1, 1, 0, 0, 0, 0),
 		tidbTypes.FromDate(2020, 1, 1, 0, 0, 0, 0),
 	}
+
+	autoOptTypes = []ast.ColumnOptionType{ast.ColumnOptionAutoIncrement, ast.ColumnOptionAutoRandom}
 )
+
+func randAutoOpt() *ast.ColumnOption {
+	opt := &ast.ColumnOption{Tp: autoOptTypes[util.Rd(len(autoOptTypes))]}
+	if opt.Tp == ast.ColumnOptionAutoRandom {
+		opt.AutoRandomBitLength = 1 + util.Rd(autoid.MaxAutoRandomBits)
+	}
+	return opt
+}
 
 func (e *Executor) walkDDLCreateTable(index int, node *ast.CreateTableStmt, colTypes []string) (string, string, error) {
 	table := fmt.Sprintf("%s_%s", "table", strings.Join(colTypes, "_"))
 	idColName := fmt.Sprintf("id_%d", index)
 
-	idFieldType := parserTypes.NewFieldType(Type2Tp("int"))
-	idFieldType.Flen = dataType2Len("int")
+	idFieldType := parserTypes.NewFieldType(Type2Tp("bigint"))
+	idFieldType.Flen = dataType2Len("bigint")
 	idCol := &ast.ColumnDef{
 		Name:    &ast.ColumnName{Name: model.NewCIStr(idColName)},
 		Tp:      idFieldType,
-		Options: []*ast.ColumnOption{{Tp: ast.ColumnOptionAutoIncrement}},
+		Options: []*ast.ColumnOption{randAutoOpt()},
 	}
 	node.Cols = append(node.Cols, idCol)
 	makeConstraintPrimaryKey(node, idColName)
@@ -56,6 +67,14 @@ func (e *Executor) walkDDLCreateTable(index int, node *ast.CreateTableStmt, colT
 			Name: &ast.ColumnName{Name: model.NewCIStr(fmt.Sprintf("col_%s_%d", colType, index))},
 			Tp:   fieldType,
 		})
+	}
+
+	// Auto_random should only have one primary key
+	// The columns in expressions of partition table must be included
+	// in primary key/unique constraints
+	// So no partition table if there is auto_random column
+	if idCol.Options[0].Tp == ast.ColumnOptionAutoRandom {
+		node.Partition = nil
 	}
 	if node.Partition != nil {
 		if colType := e.walkPartition(index, node.Partition, colTypes); colType != "" {
@@ -350,6 +369,8 @@ func Type2Tp(t string) byte {
 	switch t {
 	case "int":
 		return mysql.TypeLong
+	case "bigint":
+		return mysql.TypeLonglong
 	case "varchar":
 		return mysql.TypeVarchar
 	case "timestamp":
