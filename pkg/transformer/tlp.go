@@ -30,6 +30,10 @@ type (
 			depth uint
 		}
 	}
+
+	SelectExprVisitor struct {
+		invalid bool
+	}
 )
 
 const (
@@ -184,36 +188,51 @@ func hasOuterJoin(resultSet ast.ResultSetNode) bool {
 }
 
 func typeOfSelectExpr(expr ast.ExprNode) SelectExprType {
-	return NORMAL
+	if fn, ok := expr.(*ast.AggregateFuncExpr); ok && SelfComposableMap[strings.ToLower(fn.F)] && !fn.Distinct {
+		return COMPOSABLE_AGG
+	}
+
+	visitor := SelectExprVisitor{}
+	expr.Accept(&visitor)
+
+	if visitor.invalid {
+		return INVALID
+	} else {
+		return NORMAL
+	}
 }
 
 func dealWithSelectFields(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) (ast.ResultSetNode, error) {
 	if selectStmt.Fields != nil && len(selectStmt.Fields.Fields) != 0 {
-		aggFns := make(map[int]bool)
+		selectWildcard := false
+		aggFns := make(map[int]string)
 		selectFields := make([]*ast.SelectField, 0, len(selectStmt.Fields.Fields))
 		unionFields := make([]*ast.SelectField, 0, len(selectStmt.Fields.Fields))
 		for index, field := range selectStmt.Fields.Fields {
 			selectField, unionField := *field, *field
 			selectFields = append(selectFields, &selectField)
 			unionFields = append(unionFields, &unionField)
-			unionFields[index].AsName = model.NewCIStr(fmt.Sprintf("c%d", index))
-			if !field.Auxiliary {
-				if fn, ok := field.Expr.(*ast.AggregateFuncExpr); ok {
-					if SelfComposableMap[strings.ToLower(fn.F)] && !fn.Distinct {
-						aggFns[index] = true
-						selectFn := *fn
-						selectField.Expr = &selectFn
-						continue
-					} else {
-						return nil, errors.New("only self-composable aggregation func is supported")
+			if field.WildCard != nil {
+				selectWildcard = true
+			} else {
+				unionFields[index].AsName = model.NewCIStr(fmt.Sprintf("c%d", index))
+				if !field.Auxiliary {
+					switch typeOfSelectExpr(field.Expr) {
+					case COMPOSABLE_AGG:
+						aggFns[index] = field.Expr.(*ast.AggregateFuncExpr).F
+					case INVALID:
+						return nil, errors.New(fmt.Sprintf("unsupported select field: %#v", field))
 					}
 				}
 			}
 		}
 
-		if len(aggFns) != 0 {
+		if len(aggFns) > 0 {
+			if selectWildcard {
+				return nil, errors.New("selecting both of wildcard fields and aggregate function fields is not allowed")
+			}
 			for index, selectField := range selectFields {
-				if !aggFns[index] {
+				if aggFns[index] == "" {
 					selectField.Expr = &ast.ColumnNameExpr{
 						Name: &ast.ColumnName{
 							Table: TmpTable,
@@ -221,16 +240,20 @@ func dealWithSelectFields(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) 
 						},
 					}
 				} else {
-					selectField.Expr.(*ast.AggregateFuncExpr).Args = []ast.ExprNode{
-						&ast.ColumnNameExpr{
-							Name: &ast.ColumnName{
-								Table: TmpTable,
-								Name:  unionFields[index].AsName,
+					selectField.Expr = &ast.AggregateFuncExpr{
+						F: aggFns[index],
+						Args: []ast.ExprNode{
+							&ast.ColumnNameExpr{
+								Name: &ast.ColumnName{
+									Table: TmpTable,
+									Name:  unionFields[index].AsName,
+								},
 							},
 						},
 					}
 				}
 			}
+
 			for _, stmt := range unionStmt.SelectList.Selects {
 				stmt.Fields = &ast.FieldList{Fields: unionFields}
 			}
@@ -245,4 +268,22 @@ func dealWithSelectFields(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) 
 		}
 	}
 	return unionStmt, nil
+}
+
+func (s *SelectExprVisitor) Enter(n ast.Node) (node ast.Node, skipChildren bool) {
+	node = n
+	if _, ok := n.(*ast.AggregateFuncExpr); ok {
+		s.invalid = true
+		skipChildren = true
+	}
+	return
+}
+
+func (s *SelectExprVisitor) Leave(n ast.Node) (node ast.Node, ok bool) {
+	node = n
+	ok = true
+	if s.invalid {
+		ok = false
+	}
+	return
 }
