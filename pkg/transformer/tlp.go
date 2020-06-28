@@ -14,12 +14,32 @@ import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
-type TLPType = uint8
+type (
+	TLPType = uint8
+
+	SelectExprType = uint8
+
+	TLPTrans struct {
+		Expr ast.ExprNode
+		Tp   TLPType
+	}
+
+	AggVisitor struct {
+		currentDepth uint
+		fns          []struct {
+			depth uint
+		}
+	}
+)
 
 const (
 	WHERE TLPType = iota
 	ON_CONDITION
 	HAVING
+
+	NORMAL SelectExprType = iota
+	COMPOSABLE_AGG
+	INVALID
 )
 
 var (
@@ -27,11 +47,6 @@ var (
 	SelfComposableMap = map[string]bool{ast.AggFuncMax: true, ast.AggFuncMin: true, ast.AggFuncSum: true}
 	TmpTable          = model.NewCIStr("tmp")
 )
-
-type TLPTrans struct {
-	Expr ast.ExprNode
-	Tp   TLPType
-}
 
 func (t *TLPTrans) Transform(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
 	resultSetNodes := nodeSet
@@ -93,7 +108,7 @@ func (t *TLPTrans) transOneStmt(stmt *ast.SelectStmt) (ast.ResultSetNode, error)
 	}
 
 	// try aggregate transform
-	return tryAggTransform(stmt, &ast.UnionStmt{
+	return dealWithSelectFields(stmt, &ast.UnionStmt{
 		SelectList: &ast.UnionSelectList{
 			Selects: selects,
 		}})
@@ -168,7 +183,11 @@ func hasOuterJoin(resultSet ast.ResultSetNode) bool {
 	}
 }
 
-func tryAggTransform(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) (ast.ResultSetNode, error) {
+func typeOfSelectExpr(expr ast.ExprNode) SelectExprType {
+	return NORMAL
+}
+
+func dealWithSelectFields(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) (ast.ResultSetNode, error) {
 	if selectStmt.Fields != nil && len(selectStmt.Fields.Fields) != 0 {
 		aggFns := make(map[int]bool)
 		selectFields := make([]*ast.SelectField, 0, len(selectStmt.Fields.Fields))
