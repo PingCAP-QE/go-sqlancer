@@ -189,3 +189,14 @@ tidb> SELECT * from t;
 ## Issues found by go-sqlancer
 
 [Fuzz Issues](https://github.com/orgs/pingcap/projects/16)
+
+## Notes
+For experimental features in tidb, you need add some configs on tiup startup
+```toml
+[experimental]
+allow-expression-index = true
+allow-auto-random = true
+```
+```bash
+tiup playground nightly --db.config path/to/config/file
+```

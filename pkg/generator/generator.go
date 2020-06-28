@@ -119,6 +119,33 @@ func (g *Generator) walkResultFields(node *ast.SelectStmt, genCtx *GenCtx) ([]ty
 		node.Fields.Fields = append(node.Fields.Fields, &countField)
 		return nil, nil
 	}
+	// only used for tlp mode now, may effective on more cases in future
+	if !genCtx.IsPQSMode {
+		// rand if there is aggregation func in result field
+		if Rd(6) > 3 {
+			selfComposableAggs := []string{"sum", "min", "max"}
+			for i := 0; i < Rd(3)+1; i++ {
+				child, _, err := g.generateExpr(genCtx, types.TypeNumberLikeArg, 2)
+				if err != nil {
+					log.L().Error("generate child expr of aggeration in result field error", zap.Error(err))
+				} else {
+					aggField := ast.SelectField{
+						Expr: &ast.AggregateFuncExpr{
+							F: selfComposableAggs[Rd(len(selfComposableAggs))],
+							Args: []ast.ExprNode{
+								child,
+							},
+						},
+					}
+					node.Fields.Fields = append(node.Fields.Fields, &aggField)
+				}
+			}
+
+			if len(node.Fields.Fields) != 0 {
+				return nil, nil
+			}
+		}
+	}
 	columns := make([]types.Column, 0)
 	row := make(map[string]*connection.QueryItem)
 	for _, table := range genCtx.ResultTables {
