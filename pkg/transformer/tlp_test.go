@@ -200,7 +200,7 @@ var (
 		},
 	}
 
-	SelectExprVisitorTestCases = []TestCase{
+	AggregateDetectorTestCases = []TestCase{
 		{
 			origin: "1",
 			fail:   false,
@@ -281,17 +281,17 @@ func parseExpr(parser *parser.Parser, expr string) (node ast.ExprNode, warns []e
 	return
 }
 
-func TestSelectExprVisitor(t *testing.T) {
-	for _, testCase := range SelectExprVisitorTestCases {
-		testSelectExprVisitor(t, parser.New(), testCase)
+func TestAggregateDetector(t *testing.T) {
+	for _, testCase := range AggregateDetectorTestCases {
+		testAggregateDetector(t, parser.New(), testCase)
 	}
 }
 
-func testSelectExprVisitor(t *testing.T, parser *parser.Parser, testCase TestCase) {
+func testAggregateDetector(t *testing.T, parser *parser.Parser, testCase TestCase) {
 	exprNode, warns, err := parseExpr(parser, testCase.origin)
 	assert.Nil(t, err)
 	assert.Empty(t, warns)
-	visitor := SelectExprVisitor{}
-	exprNode.Accept(&visitor)
-	assert.Equal(t, testCase.fail, visitor.invalid)
+	detector := AggregateDetector{}
+	exprNode.Accept(&detector)
+	assert.Equal(t, testCase.fail, detector.detected)
 }

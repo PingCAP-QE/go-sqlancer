@@ -24,15 +24,8 @@ type (
 		Tp   TLPType
 	}
 
-	AggVisitor struct {
-		currentDepth uint
-		fns          []struct {
-			depth uint
-		}
-	}
-
-	SelectExprVisitor struct {
-		invalid bool
+	AggregateDetector struct {
+		detected bool
 	}
 )
 
@@ -192,10 +185,10 @@ func typeOfSelectExpr(expr ast.ExprNode) SelectExprType {
 		return COMPOSABLE_AGG
 	}
 
-	visitor := SelectExprVisitor{}
-	expr.Accept(&visitor)
+	detector := AggregateDetector{}
+	expr.Accept(&detector)
 
-	if visitor.invalid {
+	if detector.detected {
 		return INVALID
 	} else {
 		return NORMAL
@@ -270,19 +263,19 @@ func dealWithSelectFields(selectStmt *ast.SelectStmt, unionStmt *ast.UnionStmt) 
 	return unionStmt, nil
 }
 
-func (s *SelectExprVisitor) Enter(n ast.Node) (node ast.Node, skipChildren bool) {
+func (s *AggregateDetector) Enter(n ast.Node) (node ast.Node, skipChildren bool) {
 	node = n
 	if _, ok := n.(*ast.AggregateFuncExpr); ok {
-		s.invalid = true
+		s.detected = true
 		skipChildren = true
 	}
 	return
 }
 
-func (s *SelectExprVisitor) Leave(n ast.Node) (node ast.Node, ok bool) {
+func (s *AggregateDetector) Leave(n ast.Node) (node ast.Node, ok bool) {
 	node = n
 	ok = true
-	if s.invalid {
+	if s.detected {
 		ok = false
 	}
 	return
