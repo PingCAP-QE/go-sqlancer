@@ -5,8 +5,11 @@ import (
 )
 
 // TODO: implement union Transformer
-var UnionTrans TransformerSingleton = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
-	return nodeSet
+var UnionTrans TransformerSingleton = func(nodes []ast.ResultSetNode) []ast.ResultSetNode {
+	if len(nodes) > 1 {
+		nodes = append(nodes, union(nodes))
+	}
+	return nodes
 }
 
 func union(nodes []ast.ResultSetNode) *ast.UnionStmt {

@@ -45,26 +45,22 @@ var (
 	TmpTable          = model.NewCIStr("tmp")
 )
 
-func (t *TLPTrans) Transform(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
-	resultSetNodes := nodeSet
-	for idx, nodes := range nodeSet {
-		nodeArr := nodes
-		for _, node := range nodes {
-			switch n := node.(type) {
-			case *ast.UnionStmt:
-			case *ast.SelectStmt:
-				if eqNode, err := t.transOneStmt(n); err == nil {
-					nodeArr = append(nodeArr, eqNode)
-				} else {
-					log.L().Info("tlp trans error", zap.Error(err))
-				}
-			default:
-				panic("type not implemented")
+func (t *TLPTrans) Transform(nodes []ast.ResultSetNode) []ast.ResultSetNode {
+	nodeArr := nodes
+	for _, node := range nodes {
+		switch n := node.(type) {
+		case *ast.UnionStmt:
+		case *ast.SelectStmt:
+			if eqNode, err := t.transOneStmt(n); err == nil {
+				nodeArr = append(nodeArr, eqNode)
+			} else {
+				log.L().Info("tlp trans error", zap.Error(err))
 			}
+		default:
+			panic("type not implemented")
 		}
-		resultSetNodes[idx] = nodeArr
 	}
-	return resultSetNodes
+	return nodeArr
 }
 
 func (t *TLPTrans) transOneStmt(stmt *ast.SelectStmt) (ast.ResultSetNode, error) {

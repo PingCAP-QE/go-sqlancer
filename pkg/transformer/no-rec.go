@@ -21,31 +21,26 @@ const (
  *     => select count(*) from B join C on D where E
  *     => select sum(t_0.c_0) from (select (E is true) as c_0 from B join C on D) as t_0
  */
-var NoREC TransformerSingleton = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
-	resultSetNodes := make([][]ast.ResultSetNode, len(nodeSet))
-	copy(resultSetNodes, nodeSet)
-	for _, nodes := range nodeSet {
-		nodeArr := make([]ast.ResultSetNode, 0)
-		for _, node := range nodes {
-			switch t := node.(type) {
-			case *ast.UnionStmt:
-			case *ast.SelectStmt:
-				if eqNodes, err := norec(t); err == nil {
-					nodeArr = append(nodeArr, eqNodes...)
-				} else {
-					log.L().Info("norec trans error", zap.Error(err))
-				}
-			default:
-				panic("type not implemented")
+var NoREC TransformerSingleton = func(nodes []ast.ResultSetNode) []ast.ResultSetNode {
+	nodeArr := make([]ast.ResultSetNode, 0)
+	for _, node := range nodes {
+		switch t := node.(type) {
+		case *ast.UnionStmt:
+		case *ast.SelectStmt:
+			if eqNodes, err := norec(t); err == nil {
+				nodeArr = append(nodeArr, eqNodes...)
+			} else {
+				log.L().Info("norec trans error", zap.Error(err))
 			}
-		}
-		if len(nodeArr) > 0 {
-			resultSetNodes = append(resultSetNodes, nodeArr)
-		} else {
-			log.L().Warn("empty nodeArr")
+		default:
+			panic("type not implemented")
 		}
 	}
-	return resultSetNodes
+	if len(nodeArr) == 0 {
+		log.L().Warn("empty nodeArr")
+	}
+
+	return nodeArr
 }
 
 type NoRECVisitor struct {
