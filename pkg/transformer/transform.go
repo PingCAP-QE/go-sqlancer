@@ -17,20 +17,22 @@ func (t TransformerSingleton) Transform(stmts [][]ast.ResultSetNode) [][]ast.Res
 	return t(stmts)
 }
 
-func Transform(transformers []Transformer, stmt ast.ResultSetNode, depth int) [][]ast.ResultSetNode {
+func NewTransformer(transformers []Transformer, depth int) Transformer {
 	var random = func() Transformer {
 		return transformers[util.Rd(len(transformers))]
 	}
 
-	results := [][]ast.ResultSetNode{{stmt}}
-	// if depth == 1 {
-	// 	random().Transform(results)
-	// 	return results
-	// }
+	var transformer Transformer = BlankTransformer
 
 	for i := 0; i < depth; i++ {
-		results = random().Transform(results)
+		transformer = Join(transformer, random())
 	}
-	// resultSets = append(resultSets, union(resultSets))
-	return results
+
+	return transformer
 }
+
+var (
+	BlankTransformer TransformerSingleton = func(nodeSet [][]ast.ResultSetNode) [][]ast.ResultSetNode {
+		return nodeSet
+	}
+)
