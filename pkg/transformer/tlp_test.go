@@ -11,11 +11,13 @@ import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/util"
 )
 
-type TLPTestCase struct {
-	TestCase
-	tp   TLPType
-	expr string
-}
+type (
+	TLPTestCase struct {
+		TestCase
+		tp   TLPType
+		expr string
+	}
+)
 
 var (
 	TLPTestCases = []TLPTestCase{
@@ -166,6 +168,67 @@ var (
 					" as tmp",
 			},
 		},
+		{
+			// transform with both wildcard selection and aggregate function selection
+			tp:   WHERE,
+			expr: "t.c",
+			TestCase: TestCase{
+				fail:   true,
+				origin: "SELECT MAX(c), * FROM t",
+				expect: "",
+			},
+		},
+		{
+			// transform with aggregate function embedded in normal expression
+			tp:   WHERE,
+			expr: "t.c",
+			TestCase: TestCase{
+				fail:   true,
+				origin: "SELECT IFNULL(SUM(c), 0) FROM t",
+				expect: "",
+			},
+		},
+		{
+			// transform with aggregate function embedded in normal expression
+			tp:   WHERE,
+			expr: "t.c",
+			TestCase: TestCase{
+				fail:   true,
+				origin: "SELECT 1 + SUM(c) FROM t",
+				expect: "",
+			},
+		},
+	}
+
+	AggregateDetectorTestCases = []TestCase{
+		{
+			origin: "1",
+			fail:   false,
+		},
+		{
+			origin: "1 + true",
+			fail:   false,
+		},
+		{
+			origin: "c",
+			fail:   false,
+		},
+		{
+			origin: "c+1",
+			fail:   false,
+		},
+		{
+			origin: "IFNULL((1 + NULL) IS NULL, true)",
+			fail:   false,
+		},
+		{
+			origin: "1 + SUM(c)",
+			fail:   true,
+		},
+		{
+			origin: "IFNULL(SUM(c), 0)",
+			fail:   true,
+		},
 	}
 )
 
@@ -202,9 +265,8 @@ func TLPTransTest(t *testing.T, parser *parser.Parser, testCase TLPTestCase) {
 }
 
 func TestTLPTrans_Trans(t *testing.T) {
-	parser := parser.New()
 	for _, testCase := range TLPTestCases {
-		TLPTransTest(t, parser, testCase)
+		TLPTransTest(t, parser.New(), testCase)
 	}
 }
 
@@ -217,4 +279,19 @@ func parseExpr(parser *parser.Parser, expr string) (node ast.ExprNode, warns []e
 		node = stmt.Where
 	}
 	return
+}
+
+func TestAggregateDetector(t *testing.T) {
+	for _, testCase := range AggregateDetectorTestCases {
+		testAggregateDetector(t, parser.New(), testCase)
+	}
+}
+
+func testAggregateDetector(t *testing.T, parser *parser.Parser, testCase TestCase) {
+	exprNode, warns, err := parseExpr(parser, testCase.origin)
+	assert.Nil(t, err)
+	assert.Empty(t, warns)
+	detector := AggregateDetector{}
+	exprNode.Accept(&detector)
+	assert.Equal(t, testCase.fail, detector.detected)
 }
