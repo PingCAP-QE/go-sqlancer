@@ -243,14 +243,13 @@ func TLPTransTest(t *testing.T, parser *parser.Parser, testCase TLPTestCase) {
 	assert.True(t, len(nodes) == 1)
 	selectStmt, ok := nodes[0].(*ast.SelectStmt)
 	assert.True(t, ok)
-	resultSetNodes := tlpTrans.Transform([][]ast.ResultSetNode{{selectStmt}})
-	assert.NotEmpty(t, resultSetNodes)
+	resultSetNode := tlpTrans.Transform([]ast.ResultSetNode{selectStmt})
 
 	if testCase.fail {
-		assert.True(t, assert.True(t, len(resultSetNodes[0]) == 1))
+		assert.True(t, assert.True(t, len(resultSetNode) == 1))
 	} else {
-		assert.True(t, len(resultSetNodes[0]) >= 2)
-		output, err := util.BufferOut(resultSetNodes[0][1])
+		assert.True(t, len(resultSetNode) >= 2)
+		output, err := util.BufferOut(resultSetNode[1])
 		assert.Nil(t, err)
 
 		expectNodes, warns, err := parser.Parse(testCase.expect, "", "")
