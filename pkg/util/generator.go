@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
-	. "github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/format"
 	"github.com/pingcap/parser/mysql"
@@ -111,16 +110,16 @@ func BufferOut(node ast.Node) (string, error) {
 func TransMysqlType(t *parser_types.FieldType) uint64 {
 	switch t.Tp {
 	case mysql.TypeTiny, mysql.TypeShort, mysql.TypeLong, mysql.TypeLonglong, mysql.TypeInt24:
-		return TypeIntArg
+		return types.TypeIntArg
 	case mysql.TypeDecimal, mysql.TypeFloat, mysql.TypeDouble:
-		return TypeFloatArg
+		return types.TypeFloatArg
 	case mysql.TypeTimestamp, mysql.TypeDate, mysql.TypeDatetime:
-		return TypeDatetimeArg
+		return types.TypeDatetimeArg
 	case mysql.TypeVarchar, mysql.TypeJSON, mysql.TypeVarString, mysql.TypeString:
-		return TypeStringArg
+		return types.TypeStringArg
 		// Note: Null is base of all types
 	case mysql.TypeNull:
-		arr := []uint64{TypeIntArg, TypeFloatArg, TypeDatetimeArg, TypeStringArg}
+		arr := []uint64{types.TypeIntArg, types.TypeFloatArg, types.TypeDatetimeArg, types.TypeStringArg}
 		return arr[rand.Intn(len(arr))]
 	default:
 		panic(fmt.Sprintf("no implement for type: %s", t.String()))
@@ -132,13 +131,13 @@ func TransStringType(s string) uint64 {
 	s = strings.ToLower(s)
 	switch {
 	case strings.Contains(s, "string"), strings.Contains(s, "char"), strings.Contains(s, "text"), strings.Contains(s, "json"):
-		return TypeStringArg
+		return types.TypeStringArg
 	case strings.Contains(s, "int"), strings.Contains(s, "long"), strings.Contains(s, "short"), strings.Contains(s, "tiny"):
-		return TypeIntArg
+		return types.TypeIntArg
 	case strings.Contains(s, "float"), strings.Contains(s, "decimal"), strings.Contains(s, "double"):
-		return TypeFloatArg
+		return types.TypeFloatArg
 	case strings.Contains(s, "time"), strings.Contains(s, "date"):
-		return TypeDatetimeArg
+		return types.TypeDatetimeArg
 	default:
 		panic(fmt.Sprintf("no implement for type: %s", s))
 	}
@@ -146,13 +145,13 @@ func TransStringType(s string) uint64 {
 
 func TransToMysqlType(i uint64) byte {
 	switch i {
-	case TypeIntArg:
+	case types.TypeIntArg:
 		return mysql.TypeLong
-	case TypeFloatArg:
+	case types.TypeFloatArg:
 		return mysql.TypeDouble
-	case TypeDatetimeArg:
+	case types.TypeDatetimeArg:
 		return mysql.TypeDatetime
-	case TypeStringArg:
+	case types.TypeStringArg:
 		return mysql.TypeVarchar
 	default:
 		panic(fmt.Sprintf("no implement this type: %d", i))

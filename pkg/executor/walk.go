@@ -50,7 +50,7 @@ func (e *Executor) walkDDLCreateTable(index int, node *ast.CreateTableStmt, colT
 	idColName := fmt.Sprintf("id_%d", index)
 
 	idFieldType := parserTypes.NewFieldType(Type2Tp("bigint"))
-	idFieldType.Flen = dataType2Len("bigint")
+	idFieldType.Flen = DataType2Len("bigint")
 	idCol := &ast.ColumnDef{
 		Name:    &ast.ColumnName{Name: model.NewCIStr(idColName)},
 		Tp:      idFieldType,
@@ -62,7 +62,7 @@ func (e *Executor) walkDDLCreateTable(index int, node *ast.CreateTableStmt, colT
 	node.Table.Name = model.NewCIStr(table)
 	for _, colType := range colTypes {
 		fieldType := parserTypes.NewFieldType(Type2Tp(colType))
-		fieldType.Flen = dataType2Len(colType)
+		fieldType.Flen = DataType2Len(colType)
 		node.Cols = append(node.Cols, &ast.ColumnDef{
 			Name: &ast.ColumnName{Name: model.NewCIStr(fmt.Sprintf("col_%s_%d", colType, index))},
 			Tp:   fieldType,
