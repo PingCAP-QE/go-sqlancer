@@ -8,6 +8,7 @@ require (
 	github.com/juju/errors v0.0.0-20190930114154-d42613fe1ab9
 	github.com/juju/loggo v0.0.0-20190526231331-6e530bcce5d8 // indirect
 	github.com/ngaut/log v0.0.0-20180314031856-b8e36e7ba5ac
+	github.com/pingcap/goleveldb v0.0.0-20191226122134-f82aafb29989
 	github.com/pingcap/log v0.0.0-20200511115504-543df19646ad
 	github.com/pingcap/parser v0.0.0-20200522094936-3b720a0512a6
 	github.com/pingcap/tidb v2.0.11+incompatible

@@ -10,6 +10,7 @@ import (
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
 	"github.com/chaos-mesh/go-sqlancer/pkg/executor"
 	"github.com/chaos-mesh/go-sqlancer/pkg/generator"
+	"github.com/chaos-mesh/go-sqlancer/pkg/mutation"
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/chaos-mesh/go-sqlancer/pkg/types/mutasql"
 	"github.com/chaos-mesh/go-sqlancer/pkg/util"
@@ -40,7 +41,10 @@ func NewMutaSql(conf *Config) (*MutaSql, error) {
 		executor:  e,
 		Generator: generator.Generator{Config: generator.Config{Hint: conf.EnableHint}},
 		pool:      new(mutasql.Pool),
-		mutations: make([]mutasql.Mutation, 0),
+		mutations: []mutasql.Mutation{
+			&mutation.Rollback{},
+			&mutation.AdditionSelect{},
+		},
 	}, nil
 }
 
@@ -133,7 +137,7 @@ func (m *MutaSql) progress() {
 		retry = 0
 		mutation := validMutations[util.Rd(len(validMutations))]
 		// TODO: remove duplicated testcases
-		newTestCase, err := mutation.Mutate(&testCase)
+		newTestCase, err := mutation.Mutate(&testCase, &m.Generator)
 		if err != nil {
 			log.L().Error("mutate error", zap.Error(err))
 			continue
@@ -183,8 +187,16 @@ func (m *MutaSql) applyTestCase(t *mutasql.TestCase) ([]connection.QueryItems, e
 	renamedCase := t.Clone()
 	renamedCase.ReplaceTableName(tableNames)
 
+	if err := m.execSQLsWithErrLog(renamedCase.BeforeInsert); err != nil {
+		return nil, err
+	}
+
 	err := m.populateData(&renamedCase)
 	if err != nil {
+		return nil, err
+	}
+
+	if err = m.execSQLsWithErrLog(renamedCase.AfterInsert); err != nil {
 		return nil, err
 	}
 
@@ -195,8 +207,32 @@ func (m *MutaSql) applyTestCase(t *mutasql.TestCase) ([]connection.QueryItems, e
 
 	log.L().Debug("SQL EXEC: " + sql)
 	res, err := m.executor.GetConn().Select(sql)
+	if err != nil {
+		return nil, err
+	}
 
-	return res, err
+	if err = m.execSQLsWithErrLog(renamedCase.CleanUp); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (m *MutaSql) execSQLsWithErrLog(nodes []ast.Node) error {
+	for _, node := range nodes {
+		sql, err := util.BufferOut(node)
+		if err != nil {
+			return err
+		}
+
+		log.L().Debug("SQL EXEC: " + sql)
+		err = m.executor.Exec(sql)
+		if err != nil {
+			log.L().Error("sql execute error", zap.Error(err))
+			return err
+		}
+	}
+	return nil
 }
 
 // create table
@@ -204,18 +240,8 @@ func (m *MutaSql) populateData(tc *mutasql.TestCase) error {
 	var err error
 	// exec Before sqls
 	for _, dataset := range tc.D {
-		for _, node := range dataset.Before {
-			sql, err := util.BufferOut(node)
-			if err != nil {
-				return err
-			}
-
-			log.L().Debug("SQL EXEC: " + sql)
-			err = m.executor.Exec(sql)
-			if err != nil {
-				log.L().Error("sql execute error", zap.Error(err))
-				return err
-			}
+		if err = m.execSQLsWithErrLog(dataset.Before); err != nil {
+			return err
 		}
 
 		err = m.createSchema(dataset.Table)
@@ -229,18 +255,8 @@ func (m *MutaSql) populateData(tc *mutasql.TestCase) error {
 			return err
 		}
 
-		for _, node := range dataset.After {
-			sql, err := util.BufferOut(node)
-			if err != nil {
-				return err
-			}
-
-			log.L().Debug("SQL EXEC: " + sql)
-			err = m.executor.Exec(sql)
-			if err != nil {
-				log.L().Error("sql execute error", zap.Error(err))
-				return err
-			}
+		if err = m.execSQLsWithErrLog(dataset.After); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -322,8 +338,8 @@ func (m *MutaSql) insertData(t types.Table, columns map[string][]*connection.Que
 }
 
 func (m *MutaSql) PrintError(origin, mutated *mutasql.TestCase, results ...[]connection.QueryItems) {
-	log.L().Error("origin: " + origin.Print())
-	log.L().Error("mutated: " + mutated.Print())
+	log.L().Error("origin: " + origin.String())
+	log.L().Error("mutated: " + mutated.String())
 	for i, res := range results {
 		output := fmt.Sprintf("Query Result_%d:", i)
 		for j, items := range res {

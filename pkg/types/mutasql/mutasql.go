@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
+	"github.com/chaos-mesh/go-sqlancer/pkg/generator"
 	"github.com/chaos-mesh/go-sqlancer/pkg/types"
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
@@ -21,14 +22,42 @@ func (p *Pool) Length() int {
 }
 
 type TestCase struct {
-	D       []*Dataset
-	Q       ast.Node
-	Mutable bool // TODO: useful?
+	D            []*Dataset
+	Q            ast.Node
+	Mutable      bool // TODO: useful?
+	BeforeInsert []ast.Node
+	AfterInsert  []ast.Node // i.e. before checking SQL
+	CleanUp      []ast.Node // such as `ROLLBACK` or `COMMIT`
+	// will NOT be executed as some SQLs before were failed
 }
 
+const INDENT_LEVEL_1 = "  "
+const INDENT_LEVEL_2 = "    "
+const INDENT_LEVEL_3 = "      "
+const INDENT_LEVEL_4 = "        "
+
 // TODO
-func (t *TestCase) Print() string {
-	return ""
+func (t *TestCase) String() string {
+	str := "TestCase struct:\n"
+	str += INDENT_LEVEL_1 + "Query:\n"
+	str += INDENT_LEVEL_2 + restoreWithPanic(t.Q) + "\n"
+	str += INDENT_LEVEL_1 + "Before Insert:\n"
+	for _, n := range t.BeforeInsert {
+		str += INDENT_LEVEL_2 + restoreWithPanic(n) + "\n"
+	}
+	str += INDENT_LEVEL_1 + "After Insert:\n"
+	for _, n := range t.AfterInsert {
+		str += INDENT_LEVEL_2 + restoreWithPanic(n) + "\n"
+	}
+	str += INDENT_LEVEL_1 + "Clean Up:\n"
+	for _, n := range t.CleanUp {
+		str += INDENT_LEVEL_2 + restoreWithPanic(n) + "\n"
+	}
+	str += INDENT_LEVEL_1 + "Dataset:\n"
+	for _, d := range t.D {
+		str += d.String()
+	}
+	return str
 }
 
 // clone dataset also
@@ -42,6 +71,15 @@ func (t *TestCase) Clone() TestCase {
 		d := i.Clone()
 		newTestCase.D = append(newTestCase.D, &d)
 	}
+	for _, i := range t.BeforeInsert {
+		newTestCase.BeforeInsert = append(newTestCase.BeforeInsert, cloneNode(i))
+	}
+	for _, i := range t.AfterInsert {
+		newTestCase.AfterInsert = append(newTestCase.AfterInsert, cloneNode(i))
+	}
+	for _, i := range t.CleanUp {
+		newTestCase.CleanUp = append(newTestCase.CleanUp, cloneNode(i))
+	}
 	return newTestCase
 }
 
@@ -52,14 +90,18 @@ func (t *TestCase) ReplaceTableName(tableMap map[string]string) {
 	}
 }
 
-func cloneNode(n ast.Node) ast.Node {
+func restoreWithPanic(n ast.Node) string {
 	out := new(bytes.Buffer)
 	err := n.Restore(format.NewRestoreCtx(format.RestoreStringDoubleQuotes, out))
 	if err != nil {
 		panic(zap.Error(err)) // should never get error
 	}
-	sql := out.String()
+	return out.String()
+}
+
+func cloneNode(n ast.Node) ast.Node {
 	p := parser.New()
+	sql := restoreWithPanic(n)
 	stmtNodes, _, _ := p.Parse(sql, "", "")
 
 	return stmtNodes[0]
@@ -120,16 +162,58 @@ type Dataset struct {
 	Table  types.Table
 }
 
+func (d *Dataset) String() string {
+	str := INDENT_LEVEL_2 + "Table: " + d.Table.Name.String() + "\n"
+	str += INDENT_LEVEL_3 + "Columns:\n"
+	for _, c := range d.Table.Columns {
+		str += INDENT_LEVEL_4 + c.Name.String() + "(" + c.Type + ")\n"
+	}
+	str += INDENT_LEVEL_3 + "Rows:\n"
+	if len(d.Rows) != 0 {
+		firstCol := "" // get first column name
+		for firstCol = range d.Rows {
+			break
+		}
+		dataLen := len(d.Rows[firstCol])
+		for i := 0; i < dataLen; i++ {
+			str += INDENT_LEVEL_4
+			for _, col := range d.Rows {
+				str += col[i].String() + " "
+			}
+			str += "\n"
+		}
+	}
+	str += INDENT_LEVEL_3 + "Before:\n"
+	for _, n := range d.Before {
+		str += INDENT_LEVEL_4 + restoreWithPanic(n) + "\n"
+	}
+	str += INDENT_LEVEL_3 + "After:\n"
+	for _, n := range d.After {
+		str += INDENT_LEVEL_4 + restoreWithPanic(n) + "\n"
+	}
+	return str
+}
+
 func (d *Dataset) ReplaceTableName(tableMap map[string]string) {
 	if tableName, ok := tableMap[d.Table.Name.String()]; ok {
 		d.Table.Name = types.CIStr(tableName)
+		columns := make(types.Columns, 0)
+		for _, i := range d.Table.Columns {
+			i.Table = types.CIStr(tableName)
+			columns = append(columns, i)
+		}
+		d.Table.Columns = columns
 	}
+	nodes := make([]ast.Node, 0)
 	for _, node := range d.Before {
-		node = replaceTableNameInNode(node, tableMap)
+		nodes = append(nodes, replaceTableNameInNode(node, tableMap))
 	}
+	d.Before = nodes
+	nodes = make([]ast.Node, 0)
 	for _, node := range d.After {
-		node = replaceTableNameInNode(node, tableMap)
+		nodes = append(nodes, replaceTableNameInNode(node, tableMap))
 	}
+	d.After = nodes
 }
 
 func (d *Dataset) Clone() Dataset {
@@ -156,5 +240,5 @@ func (d *Dataset) Clone() Dataset {
 
 type Mutation interface {
 	Condition(*TestCase) bool
-	Mutate(*TestCase) (TestCase, error)
+	Mutate(*TestCase, *generator.Generator) (TestCase, error)
 }
