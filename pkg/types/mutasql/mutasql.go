@@ -2,6 +2,7 @@ package mutasql
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/connection"
 	"github.com/chaos-mesh/go-sqlancer/pkg/generator"
@@ -13,13 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type Pool struct {
-	Collection []TestCase
-}
-
-func (p *Pool) Length() int {
-	return len(p.Collection)
-}
+type Pool = []TestCase
 
 type TestCase struct {
 	D            []*Dataset
@@ -36,7 +31,6 @@ const INDENT_LEVEL_2 = "    "
 const INDENT_LEVEL_3 = "      "
 const INDENT_LEVEL_4 = "        "
 
-// TODO
 func (t *TestCase) String() string {
 	str := "TestCase struct:\n"
 	str += INDENT_LEVEL_1 + "Query:\n"
@@ -162,6 +156,18 @@ type Dataset struct {
 	Table  types.Table
 }
 
+// returned QueryItem.ValType is not used
+func (d *Dataset) MakeQueryItem(val interface{}, colType string) *connection.QueryItem {
+	qi := new(connection.QueryItem)
+	if val == nil {
+		qi.Null = true
+		return qi
+	}
+
+	qi.ValString = fmt.Sprintf("%v", val)
+	return qi
+}
+
 func (d *Dataset) String() string {
 	str := INDENT_LEVEL_2 + "Table: " + d.Table.Name.String() + "\n"
 	str += INDENT_LEVEL_3 + "Columns:\n"
@@ -178,7 +184,7 @@ func (d *Dataset) String() string {
 		for i := 0; i < dataLen; i++ {
 			str += INDENT_LEVEL_4
 			for _, col := range d.Rows {
-				str += col[i].String() + " "
+				str += col[i].StringWithoutType() + " "
 			}
 			str += "\n"
 		}
@@ -228,6 +234,7 @@ func (d *Dataset) Clone() Dataset {
 		var items []*connection.QueryItem
 		for _, j := range i {
 			item := *j
+			// generally ValType is not actual type
 			valType := *(j.ValType)
 			item.ValType = &valType
 			items = append(items, &item)

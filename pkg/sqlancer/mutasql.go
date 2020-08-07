@@ -2,6 +2,7 @@ package sqlancer
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
@@ -26,7 +27,7 @@ type MutaSql struct {
 	conf     *Config
 	executor *executor.Executor
 
-	pool      *mutasql.Pool
+	pool      mutasql.Pool
 	mutations []mutasql.Mutation
 }
 
@@ -40,7 +41,7 @@ func NewMutaSql(conf *Config) (*MutaSql, error) {
 		conf:      conf,
 		executor:  e,
 		Generator: generator.Generator{Config: generator.Config{Hint: conf.EnableHint}},
-		pool:      new(mutasql.Pool),
+		pool:      make(mutasql.Pool, 0),
 		mutations: []mutasql.Mutation{
 			&mutation.Rollback{},
 			&mutation.AdditionSelect{},
@@ -59,7 +60,74 @@ func (m *MutaSql) init() {
 }
 
 func (m *MutaSql) makeSeedQuery() {
-	// TODO
+	for i := 0; i < 5; i++ {
+		m.makeTestCase()
+	}
+}
+
+func (m *MutaSql) makeTestCase() {
+	newCase := mutasql.TestCase{Mutable: true}
+
+	// generate some tables
+	tableNum := util.Rd(3) + 1
+	for i := 0; i < tableNum; i++ {
+		d := new(mutasql.Dataset)
+		tableName := util.RdStringChar(6)
+		d.Table.Name = types.CIStr(tableName)
+
+		columnNum := util.Rd(4) + 1
+		rowNum := util.Rd(16)
+		for j := 0; j < columnNum; j++ {
+			colName := util.RdStringChar(4)
+			col := types.Column{
+				Table: types.CIStr(tableName),
+				Name:  types.CIStr(colName),
+				Null:  util.RdBool(),
+			}
+			// notice we do NOT support timestamp/datetime
+			switch util.Rd(5) {
+			case 0:
+				col.Type = "int"
+				col.Length = 3 + util.Rd(13)
+			case 1:
+				col.Type = "bigint"
+				col.Length = 3 + util.Rd(61)
+			case 2:
+				col.Type = "varchar"
+				col.Length = 63 + util.Rd(64)
+			case 3:
+				col.Type = "float"
+			case 4:
+				col.Type = "text"
+				col.Length = 63 + util.Rd(65473)
+			case 5:
+				col.Type = "timestamp"
+			case 6:
+				col.Type = "datetime"
+			default:
+				panic("no such type")
+			}
+			d.Table.Columns = append(d.Table.Columns, col)
+			d.Rows[colName] = make([]*connection.QueryItem, 0)
+			for k := 0; k < rowNum; k++ {
+				d.Rows[colName] = append(d.Rows[colName], randQueryItem(col))
+			}
+		}
+
+		newCase.D = append(newCase.D, d)
+	}
+
+	genCtx := generator.NewGenCtx(newCase.GetAllTables(), nil)
+	genCtx.IsPQSMode = false
+
+	selectAST, _, _, _, err := m.Generator.SelectStmt(genCtx, 3)
+	if err != nil {
+		log.L().Error("failed to make seed query", zap.Error(err))
+		panic(fmt.Sprintf("failed to make seed query: %v", err))
+	}
+
+	newCase.Q = selectAST
+	m.pool = append(m.pool, newCase)
 }
 
 func (m *MutaSql) run(ctx context.Context) {
@@ -114,12 +182,12 @@ func (m *MutaSql) verify(a, b []connection.QueryItems) bool {
 }
 
 func (m *MutaSql) progress() {
-	if m.pool.Length() == 0 {
+	if len(m.pool) == 0 {
 		panic("no testcases in pool")
 	}
 	retry := 0
 	for {
-		testCase := m.pool.Collection[util.Rd(m.pool.Length())]
+		testCase := m.pool[util.Rd(len(m.pool))]
 		validMutations := make([]mutasql.Mutation, 0)
 		for _, i := range m.mutations {
 			if i.Condition(&testCase) {
@@ -319,7 +387,7 @@ func (m *MutaSql) insertData(t types.Table, columns map[string][]*connection.Que
 		// assume number of columnNames equals real column number in Table.Columns
 		var values []ast.ExprNode
 		for _, col := range columnNames {
-			if err, val := transQueryItemToValue(columns[col][i]); err == nil {
+			if err, val := transQueryItemToValue(columns[col][i], col); err == nil {
 				values = append(values, ast.NewValueExpr(val, "", ""))
 			} else {
 				return err
@@ -352,21 +420,21 @@ func (m *MutaSql) PrintError(origin, mutated *mutasql.TestCase, results ...[]con
 	}
 }
 
-func transQueryItemToValue(q *connection.QueryItem) (error, interface{}) {
+func transQueryItemToValue(q *connection.QueryItem, colType string) (error, interface{}) {
 	if q.Null {
 		return nil, nil
 	}
 
-	switch strings.ToUpper(q.ValType.DatabaseTypeName()) {
-	case "VARCHAR", "CHAR", "TEXT":
+	switch colType {
+	case "varchar", "char", "text":
 		return nil, q.ValString
-	case "SMALLINT", "INT", "BIGINT":
+	case "smallint", "int", "bigint":
 		val, err := strconv.ParseInt(q.ValString, 10, 64)
 		if err != nil {
 			return errors.New(fmt.Sprintf("invalid int format: %s", q.ValString)), nil
 		}
 		return nil, val
-	case "BOOL":
+	case "bool":
 		if q.ValString == "0" || strings.ToUpper(q.ValString) == "FALSE" {
 			return nil, false
 		}
@@ -374,7 +442,7 @@ func transQueryItemToValue(q *connection.QueryItem) (error, interface{}) {
 			return nil, true
 		}
 		return errors.New(fmt.Sprintf("unrecognized bool value:%s", q.ValString)), nil
-	case "FLOAT", "DECIMAL":
+	case "float", "decimal":
 		val, err := strconv.ParseFloat(q.ValString, 64)
 		if err != nil {
 			return errors.New(fmt.Sprintf("invalid float format: %s", q.ValString)), nil
@@ -382,4 +450,44 @@ func transQueryItemToValue(q *connection.QueryItem) (error, interface{}) {
 		return nil, val
 	}
 	return errors.New(fmt.Sprintf("unknown type: %s", q.ValType.DatabaseTypeName())), nil
+}
+
+func randQueryItem(col types.Column) *connection.QueryItem {
+	qi := new(connection.QueryItem)
+
+	if col.Null && util.Rd(3) == 0 {
+		qi.Null = true
+		return qi
+	}
+
+	// ValType is useless
+	qi.ValType = &sql.ColumnType{}
+	switch col.Type {
+	case "int", "bigint":
+		var maxInt int64 = 1 << col.Length
+		var val int64 = 0
+		if util.Rd(3) > 0 {
+			val = util.RdInt63(maxInt)
+		}
+		qi.ValString = fmt.Sprintf("%d", val)
+	case "varchar", "text", "char":
+		if util.Rd(4) > 0 {
+			// qi.ValString = util.RdString(util.Rd(col.Length))
+			qi.ValString = util.RdString(util.Rd(8))
+		} else {
+			qi.ValString = ""
+		}
+	case "float", "decimal":
+		if util.Rd(3) > 0 {
+			qi.ValString = fmt.Sprintf("%f", util.RdFloat64())
+		} else {
+			qi.ValString = "0"
+		}
+	case "timestamp", "datetime":
+		// to be supported
+	default:
+		panic("no such type")
+	}
+
+	return qi
 }

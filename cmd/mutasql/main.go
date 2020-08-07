@@ -17,7 +17,6 @@ var (
 	duration  = flag.Duration("duration", 5*time.Hour, "fuzz duration")
 	silent    = flag.Bool("silent", false, "silent when verify failed")
 	logLevel  = flag.String("log-level", "info", "set log level: info, warn, error, debug [default: info]")
-	mode      = flag.String("approach", "pqs|norec|tlp", "use some of PQS, NoREC or TLP method, split by vertical bar")
 	depth     = flag.Int("depth", 1, "sql depth")
 	viewCount = flag.Int("view-count", 10, "count of views to be created")
 	hint      = flag.Bool("enable-hint", false, "enable sql hint for TiDB")
