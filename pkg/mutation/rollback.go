@@ -16,10 +16,10 @@ func (m *Rollback) Condition(tc *mutasql.TestCase) bool {
 func (m *Rollback) Mutate(tc *mutasql.TestCase, g *generator.Generator) (mutasql.TestCase, error) {
 	mutated := tc.Clone()
 
-	startTxnNode := &ast.BeginStmt{}
+	beginTxnNode := &ast.BeginStmt{}
 	rollbackTxnNode := &ast.RollbackStmt{}
 
-	mutated.AfterInsert = append(mutated.AfterInsert, startTxnNode)
+	mutated.AfterInsert = append(mutated.AfterInsert, beginTxnNode)
 	mutated.CleanUp = append(mutated.CleanUp, rollbackTxnNode)
 
 	return mutated, nil

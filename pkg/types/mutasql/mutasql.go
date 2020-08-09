@@ -79,6 +79,17 @@ func (t *TestCase) Clone() TestCase {
 
 func (t *TestCase) ReplaceTableName(tableMap map[string]string) {
 	t.Q = replaceTableNameInNode(t.Q, tableMap)
+	var afterInsert []ast.Node
+	for _, n := range t.AfterInsert {
+		afterInsert = append(afterInsert, replaceTableNameInNode(n, tableMap))
+	}
+	t.AfterInsert = afterInsert
+	var beforeInsert []ast.Node
+	for _, n := range t.BeforeInsert {
+		beforeInsert = append(beforeInsert, replaceTableNameInNode(n, tableMap))
+	}
+	t.BeforeInsert = beforeInsert
+
 	for _, d := range t.D {
 		d.ReplaceTableName(tableMap)
 	}
@@ -224,6 +235,7 @@ func (d *Dataset) ReplaceTableName(tableMap map[string]string) {
 
 func (d *Dataset) Clone() Dataset {
 	newDataset := Dataset{}
+	newDataset.Rows = make(map[string][]*connection.QueryItem)
 	for _, i := range d.Before {
 		newDataset.Before = append(newDataset.Before, cloneNode(i))
 	}
@@ -235,8 +247,8 @@ func (d *Dataset) Clone() Dataset {
 		for _, j := range i {
 			item := *j
 			// generally ValType is not actual type
-			valType := *(j.ValType)
-			item.ValType = &valType
+			// j.ValType is a pointer and should never be changed
+			// if anyone wants to change ValType, copy and make a new pointer
 			items = append(items, &item)
 		}
 		newDataset.Rows[k] = items

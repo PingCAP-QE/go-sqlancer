@@ -74,6 +74,7 @@ func (m *MutaSql) makeTestCase() {
 		d := new(mutasql.Dataset)
 		tableName := util.RdStringChar(6)
 		d.Table.Name = types.CIStr(tableName)
+		d.Rows = make(map[string][]*connection.QueryItem)
 
 		columnNum := util.Rd(4) + 1
 		rowNum := util.Rd(16)
@@ -153,7 +154,7 @@ func (m *MutaSql) tearDown() {
 }
 
 func (m *MutaSql) refreshDB(ctx context.Context) {
-	log.L().Debug("refresh database")
+	log.L().Info("refresh database")
 	m.setUpDB(ctx)
 }
 
@@ -252,28 +253,37 @@ func (m *MutaSql) applyTestCase(t *mutasql.TestCase) ([]connection.QueryItems, e
 	}
 	tableNames := m.randTableNames(originTableNames)
 
-	renamedCase := t.Clone()
+	// renamedCase := t.Clone()
+	renamedCase := t
 	renamedCase.ReplaceTableName(tableNames)
+
+	log.L().Info("rename complete")
 
 	if err := m.execSQLsWithErrLog(renamedCase.BeforeInsert); err != nil {
 		return nil, err
 	}
 
-	err := m.populateData(&renamedCase)
+	log.L().Info("before insert complete")
+
+	err := m.populateData(renamedCase)
 	if err != nil {
 		return nil, err
 	}
 
+	log.L().Info("populate complete")
+
 	if err = m.execSQLsWithErrLog(renamedCase.AfterInsert); err != nil {
 		return nil, err
 	}
+
+	log.L().Info("after insert complete")
 
 	sql, err := util.BufferOut(renamedCase.Q)
 	if err != nil {
 		return nil, err
 	}
 
-	log.L().Debug("SQL EXEC: " + sql)
+	log.L().Info("SQL EXEC: " + sql)
 	res, err := m.executor.GetConn().Select(sql)
 	if err != nil {
 		return nil, err
@@ -293,7 +303,7 @@ func (m *MutaSql) execSQLsWithErrLog(nodes []ast.Node) error {
 			return err
 		}
 
-		log.L().Debug("SQL EXEC: " + sql)
+		log.L().Info("SQL EXEC: " + sql)
 		err = m.executor.Exec(sql)
 		if err != nil {
 			log.L().Error("sql execute error", zap.Error(err))
@@ -317,16 +327,20 @@ func (m *MutaSql) populateData(tc *mutasql.TestCase) error {
 			log.L().Error("create schema error", zap.Error(err))
 			return err
 		}
+		log.L().Info("create schema success")
 		err = m.insertData(dataset.Table, dataset.Rows)
 		if err != nil {
 			log.L().Error("insert data error", zap.Error(err))
 			return err
 		}
+		log.L().Info("insert data success")
 
 		if err = m.execSQLsWithErrLog(dataset.After); err != nil {
 			return err
 		}
 	}
+
+	log.L().Info("populate data success")
 	return nil
 }
 
@@ -355,7 +369,7 @@ func (m *MutaSql) createSchema(t types.Table) error {
 		return err
 	}
 
-	log.L().Debug("SQL EXEC: " + sql)
+	log.L().Info("SQL EXEC: " + sql)
 	return m.executor.Exec(sql)
 }
 
@@ -370,6 +384,10 @@ func (m *MutaSql) insertData(t types.Table, columns map[string][]*connection.Que
 		Columns: []*ast.ColumnName{},
 	}
 	columnNames := make([]string, 0)
+	columnTypes := make(map[string]string)
+	for _, col := range t.Columns {
+		columnTypes[col.Name.String()] = col.Type
+	}
 	for k := range columns {
 		columnNames = append(columnNames, k)
 		node.Columns = append(node.Columns, &ast.ColumnName{
@@ -387,7 +405,7 @@ func (m *MutaSql) insertData(t types.Table, columns map[string][]*connection.Que
 		// assume number of columnNames equals real column number in Table.Columns
 		var values []ast.ExprNode
 		for _, col := range columnNames {
-			if err, val := transQueryItemToValue(columns[col][i], col); err == nil {
+			if err, val := transQueryItemToValue(columns[col][i], columnTypes[col]); err == nil {
 				values = append(values, ast.NewValueExpr(val, "", ""))
 			} else {
 				return err
@@ -396,12 +414,17 @@ func (m *MutaSql) insertData(t types.Table, columns map[string][]*connection.Que
 		node.Lists = append(node.Lists, values)
 	}
 
+	if len(node.Lists) == 0 {
+		log.L().Warn("empty items to be inserted")
+		return nil
+	}
+
 	sql, err := util.BufferOut(&node)
 	if err != nil {
 		return err
 	}
 
-	log.L().Debug("SQL EXEC: " + sql)
+	log.L().Info("SQL EXEC: " + sql)
 	return m.executor.Exec(sql)
 }
 
@@ -449,7 +472,7 @@ func transQueryItemToValue(q *connection.QueryItem, colType string) (error, inte
 		}
 		return nil, val
 	}
-	return errors.New(fmt.Sprintf("unknown type: %s", q.ValType.DatabaseTypeName())), nil
+	return errors.New(fmt.Sprintf("unknown type: %s", colType)), nil
 }
 
 func randQueryItem(col types.Column) *connection.QueryItem {
