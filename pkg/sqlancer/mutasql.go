@@ -142,6 +142,8 @@ func (m *MutaSql) run(ctx context.Context) {
 			if i >= 50 {
 				i = 0
 				m.refreshDB(ctx)
+				m.pool = make([]mutasql.TestCase, 0)
+				m.makeSeedQuery()
 			}
 			m.progress()
 			i++
@@ -232,6 +234,7 @@ func (m *MutaSql) progress() {
 			m.PrintError(&originCase, &newTestCase, originResult, newResult)
 			panic("verify error")
 		}
+		m.pool = append(m.pool, newTestCase)
 	}
 }
 
