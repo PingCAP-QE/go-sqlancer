@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/chaos-mesh/go-sqlancer/pkg/sqlancer"
+
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -46,23 +47,4 @@ func loadConfig() {
 	conf.LogLevel = *logLevel
 	conf.EnableHint = *hint
 	conf.EnableExprIndex = *exprIdx
-	// if len(*mode) == 0 {
-	// 	panic("empty mode param set")
-	// }
-	// approaches := strings.Split(*mode, "|")
-	// if len(approaches) == 0 {
-	// 	panic("no testing approach is specified")
-	// }
-	// for _, approach := range approaches {
-	// 	switch strings.ToLower(approach) {
-	// 	case "pqs":
-	// 		conf.EnablePQSApproach = true
-	// 	case "norec":
-	// 		conf.EnableNoRECApproach = true
-	// 	case "tlp":
-	// 		conf.EnableTLPApproach = true
-	// 	default:
-	// 		panic(fmt.Sprintf("unknown testing approach: %s", approach))
-	// 	}
-	// }
 }
