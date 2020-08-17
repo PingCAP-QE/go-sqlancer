@@ -41,6 +41,13 @@ func (q *QueryItem) String() string {
 	return fmt.Sprintf("%s is %s type", strValue, q.ValType.DatabaseTypeName())
 }
 
+func (q *QueryItem) StringWithoutType() string {
+	if q.Null {
+		return "NULL"
+	}
+	return q.ValString
+}
+
 // MustSame compare tow QueryItem and return error if not same
 func (q *QueryItem) MustSame(q1 *QueryItem) error {
 	if (q == nil) != (q1 == nil) {

@@ -92,7 +92,7 @@ func RdBool() bool {
 	return util.Rd(2) == 0
 }
 
-func dataType2Len(t string) int {
+func DataType2Len(t string) int {
 	switch t {
 	case "int":
 		return 16

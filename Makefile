@@ -5,10 +5,13 @@ VERSION   := $(if $(VERSION),$(VERSION),latest)
 
 GOBUILD=$(GO) build
 
-default: sqlancer
+default: sqlancer mutasql
 
 sqlancer:
-	$(GOBUILD) $(GOMOD) -o bin/go-sqlancer cmd/*.go
+	$(GOBUILD) $(GOMOD) -o bin/go-sqlancer cmd/sqlancer/*.go
+
+mutasql:
+	$(GOBUILD) $(GOMOD) -o bin/go-mutasql cmd/mutasql/*.go
 
 fmt:
 	go fmt ./...
