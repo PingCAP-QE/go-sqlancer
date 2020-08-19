@@ -13,8 +13,9 @@ func (m *Rollback) Condition(tc *mutasql.TestCase) bool {
 	return tc.Mutable && len(tc.GetAllTables()) > 0
 }
 
-func (m *Rollback) Mutate(tc *mutasql.TestCase, g *generator.Generator) (mutasql.TestCase, error) {
+func (m *Rollback) Mutate(tc *mutasql.TestCase, g *generator.Generator) ([]*mutasql.TestCase, error) {
 	mutated := tc.Clone()
+	origin := tc.Clone()
 
 	beginTxnNode := &ast.BeginStmt{}
 	rollbackTxnNode := &ast.RollbackStmt{}
@@ -22,5 +23,5 @@ func (m *Rollback) Mutate(tc *mutasql.TestCase, g *generator.Generator) (mutasql
 	mutated.AfterInsert = append(mutated.AfterInsert, beginTxnNode)
 	mutated.CleanUp = append(mutated.CleanUp, rollbackTxnNode)
 
-	return mutated, nil
+	return []*mutasql.TestCase{&origin, &mutated}, nil
 }

@@ -208,33 +208,40 @@ func (m *MutaSql) progress() {
 		retry = 0
 		mutation := validMutations[util.Rd(len(validMutations))]
 		// TODO: remove duplicated testcases
-		newTestCase, err := mutation.Mutate(&testCase, &m.Generator)
+		mutedCases, err := mutation.Mutate(&testCase, &m.Generator)
 		if err != nil {
 			log.L().Error("mutate error", zap.Error(err))
 			continue
 		}
-
-		originCase := testCase.Clone()
-
-		originResult, err := m.applyTestCase(&originCase)
-		if err != nil {
-			log.L().Error("execute error", zap.Error(err))
-			m.PrintError(&originCase, &newTestCase)
-			panic("exec error")
-		}
-		newResult, err := m.applyTestCase(&newTestCase)
-		if err != nil {
-			log.L().Error("execute error", zap.Error(err))
-			m.PrintError(&originCase, &newTestCase)
-			panic("exec error")
+		if len(mutedCases) < 2 {
+			log.L().Error("no enough cases")
+			continue
 		}
 
-		if !m.verify(originResult, newResult) {
-			log.L().Error("verify failed")
-			m.PrintError(&originCase, &newTestCase, originResult, newResult)
-			panic("verify error")
+		results := make([][]connection.QueryItems, 0)
+		for _, testCase := range mutedCases {
+			res, err := m.applyTestCase(testCase)
+			if err != nil {
+				log.L().Error("execute error", zap.Error(err))
+				log.L().Error(testCase.String())
+				panic("exec error")
+			}
+			results = append(results, res)
 		}
-		m.pool = append(m.pool, newTestCase)
+
+		if len(results) < 2 {
+			panic("results length should be not less than 2")
+		}
+		firstResult := results[0]
+		m.pool = append(m.pool, *mutedCases[0])
+		for i := 1; i < len(results); i++ {
+			if !m.verify(firstResult, results[i]) {
+				log.L().Error("verify failed")
+				m.PrintError(mutedCases[0], mutedCases[i], firstResult, results[i])
+				panic("verify error")
+			}
+			m.pool = append(m.pool, *mutedCases[i])
+		}
 	}
 }
 
@@ -431,9 +438,9 @@ func (m *MutaSql) insertData(t types.Table, columns map[string][]*connection.Que
 	return m.executor.Exec(sql)
 }
 
-func (m *MutaSql) PrintError(origin, mutated *mutasql.TestCase, results ...[]connection.QueryItems) {
-	log.L().Error("origin: " + origin.String())
-	log.L().Error("mutated: " + mutated.String())
+func (m *MutaSql) PrintError(a, b *mutasql.TestCase, results ...[]connection.QueryItems) {
+	log.L().Error("a: " + a.String())
+	log.L().Error("b: " + b.String())
 	for i, res := range results {
 		output := fmt.Sprintf("Query Result_%d:", i)
 		for j, items := range res {

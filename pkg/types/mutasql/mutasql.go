@@ -259,5 +259,5 @@ func (d *Dataset) Clone() Dataset {
 
 type Mutation interface {
 	Condition(*TestCase) bool
-	Mutate(*TestCase, *generator.Generator) (TestCase, error)
+	Mutate(*TestCase, *generator.Generator) ([]*TestCase, error)
 }
