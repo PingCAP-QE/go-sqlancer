@@ -56,7 +56,7 @@ func (m *MutaSql) Start(ctx context.Context) {
 }
 
 func (m *MutaSql) init() {
-	m.makeSeedQuery()
+	// todo
 }
 
 func (m *MutaSql) makeSeedQuery() {
@@ -128,25 +128,32 @@ func (m *MutaSql) makeTestCase() {
 	}
 
 	newCase.Q = selectAST
+
+	res, err := m.applyTestCase(&newCase, false)
+	if err != nil {
+		log.L().Error("execute sql error in seed query", zap.Error(err))
+		panic("failed to execute seed query")
+	}
+	newCase.Result = res
+	newCase.IsResultReady = true
 	m.pool = append(m.pool, newCase)
 }
 
 func (m *MutaSql) run(ctx context.Context) {
-	m.refreshDB(ctx)
 	for {
 		i := 0
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			if i >= 50 {
-				i = 0
+			if i == 0 {
+				i = 50
 				m.refreshDB(ctx)
 				m.pool = make([]mutasql.TestCase, 0)
 				m.makeSeedQuery()
 			}
 			m.progress()
-			i++
+			i--
 		}
 	}
 }
@@ -218,26 +225,22 @@ func (m *MutaSql) progress() {
 			continue
 		}
 
-		results := make([][]connection.QueryItems, 0)
 		for _, testCase := range mutedCases {
-			res, err := m.applyTestCase(testCase)
+			res, err := m.applyTestCase(testCase, true)
 			if err != nil {
 				log.L().Error("execute error", zap.Error(err))
 				log.L().Error(testCase.String())
 				panic("exec error")
 			}
-			results = append(results, res)
+			testCase.Result = res
+			testCase.IsResultReady = true
 		}
 
-		if len(results) < 2 {
-			panic("results length should be not less than 2")
-		}
-		firstResult := results[0]
 		m.pool = append(m.pool, *mutedCases[0])
-		for i := 1; i < len(results); i++ {
-			if !m.verify(firstResult, results[i]) {
+		for i := 1; i < len(mutedCases); i++ {
+			if !m.verify(mutedCases[0].Result, mutedCases[i].Result) {
 				log.L().Error("verify failed")
-				m.PrintError(mutedCases[0], mutedCases[i], firstResult, results[i])
+				m.PrintError(mutedCases[0], mutedCases[i])
 				panic("verify error")
 			}
 			m.pool = append(m.pool, *mutedCases[i])
@@ -255,7 +258,7 @@ func (m *MutaSql) randTableNames(names []types.CIStr) map[string]string {
 	return result
 }
 
-func (m *MutaSql) applyTestCase(t *mutasql.TestCase) ([]connection.QueryItems, error) {
+func (m *MutaSql) applyTestCase(t *mutasql.TestCase, rename bool) ([]connection.QueryItems, error) {
 	tables := t.GetAllTables()
 	originTableNames := make([]types.CIStr, 0)
 	for _, i := range tables {
@@ -263,9 +266,10 @@ func (m *MutaSql) applyTestCase(t *mutasql.TestCase) ([]connection.QueryItems, e
 	}
 	tableNames := m.randTableNames(originTableNames)
 
-	// renamedCase := t.Clone()
 	renamedCase := t
-	renamedCase.ReplaceTableName(tableNames)
+	if rename {
+		renamedCase.ReplaceTableName(tableNames)
+	}
 
 	log.L().Info("rename complete")
 
@@ -438,12 +442,22 @@ func (m *MutaSql) insertData(t types.Table, columns map[string][]*connection.Que
 	return m.executor.Exec(sql)
 }
 
-func (m *MutaSql) PrintError(a, b *mutasql.TestCase, results ...[]connection.QueryItems) {
+func (m *MutaSql) PrintError(a, b *mutasql.TestCase) {
 	log.L().Error("a: " + a.String())
+	if a.IsResultReady {
+		output := "Query Result_a:"
+		for j, items := range a.Result {
+			output += fmt.Sprintf("\n  [%d]:\n  ", j)
+			for _, item := range items {
+				output += fmt.Sprintf("  (%s)", item.String())
+			}
+		}
+		log.L().Error(output)
+	}
 	log.L().Error("b: " + b.String())
-	for i, res := range results {
-		output := fmt.Sprintf("Query Result_%d:", i)
-		for j, items := range res {
+	if b.IsResultReady {
+		output := "Query Result_b:"
+		for j, items := range b.Result {
 			output += fmt.Sprintf("\n  [%d]:\n  ", j)
 			for _, item := range items {
 				output += fmt.Sprintf("  (%s)", item.String())

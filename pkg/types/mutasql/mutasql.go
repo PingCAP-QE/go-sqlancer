@@ -17,12 +17,14 @@ import (
 type Pool = []TestCase
 
 type TestCase struct {
-	D            []*Dataset
-	Q            ast.Node
-	Mutable      bool // TODO: useful?
-	BeforeInsert []ast.Node
-	AfterInsert  []ast.Node // i.e. before checking SQL
-	CleanUp      []ast.Node // such as `ROLLBACK` or `COMMIT`
+	D             []*Dataset
+	Q             ast.Node
+	Mutable       bool // TODO: useful?
+	BeforeInsert  []ast.Node
+	AfterInsert   []ast.Node // i.e. before checking SQL
+	CleanUp       []ast.Node // such as `ROLLBACK` or `COMMIT`
+	Result        []connection.QueryItems
+	IsResultReady bool // Result contains value through execution
 	// will NOT be executed as some SQLs before were failed
 }
 
@@ -55,11 +57,14 @@ func (t *TestCase) String() string {
 }
 
 // clone dataset also
+// but do not clone Result
 func (t *TestCase) Clone() TestCase {
 	newTestCase := TestCase{
-		D:       make([]*Dataset, 0),
-		Q:       cloneNode(t.Q),
-		Mutable: t.Mutable,
+		D:             make([]*Dataset, 0),
+		Q:             cloneNode(t.Q),
+		Mutable:       t.Mutable,
+		Result:        make([]connection.QueryItems, 0),
+		IsResultReady: false,
 	}
 	for _, i := range t.D {
 		d := i.Clone()
