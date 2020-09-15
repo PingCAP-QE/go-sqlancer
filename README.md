@@ -2,6 +2,7 @@
 
 [![Test](https://github.com/chaos-mesh/go-sqlancer/workflows/Test/badge.svg)](https://github.com/chaos-mesh/go-sqlancer/actions?query=workflow%3ATest)
 [![Go Report Card](https://goreportcard.com/badge/github.com/chaos-mesh/go-sqlancer)](https://goreportcard.com/report/github.com/chaos-mesh/go-sqlancer)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fchaos-mesh%2Fgo-sqlancer.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fchaos-mesh%2Fgo-sqlancer?ref=badge_shield)
 
 Inspired by Manuel Rigger's paper [Testing Database Engines via Pivoted Query Synthesis](https://arxiv.org/pdf/2001.04174.pdf).
 
@@ -200,3 +201,7 @@ allow-auto-random = true
 ```bash
 tiup playground nightly --db.config path/to/config/file
 ```
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fchaos-mesh%2Fgo-sqlancer.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fchaos-mesh%2Fgo-sqlancer?ref=badge_large)
